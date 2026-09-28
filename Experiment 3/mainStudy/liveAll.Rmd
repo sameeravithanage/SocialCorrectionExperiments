@@ -1,0 +1,568 @@
+---
+title: "Live Run - Reliability of Social Correction"
+author: 'Sameera Vithanage'
+output:
+  bookdown::pdf_document2:
+    toc: true
+    toc_depth: 3
+    number_section: false
+  bookdown::html_document2: default
+---
+
+## Detailed Statistical Analysis
+
+```{r results='hide', echo=FALSE}
+#Start with a clean workspace
+rm(list=ls())
+```
+
+```{r results='hide', echo=FALSE}
+setwd("~/Projects/PhData/3Exp/live")
+```
+
+```{r results='hide', echo=FALSE}
+#The following defines a convenience function for loading libraries, installing if necessary.
+loadLibrary = function(packageName, suppressMessages = TRUE, githubRepo = NULL)
+ {
+  if (! require(packageName, character.only = TRUE)) {
+    if (! is.null(githubRepo)) {
+      loadLibrary("devtools")
+      devtools::install_github(githubRepo)    
+    }
+    else 
+      install.packages(packageName)
+  
+    if (suppressMessages)
+      suppressPackageStartupMessages(library(packageName, character.only = TRUE))
+    else 
+      library(packageName, character.only = TRUE)
+  }
+}  
+```
+
+```{r results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+#Load some useful libraries.
+
+loadLibrary('psych')
+loadLibrary("gplots")
+loadLibrary("jsonlite")
+loadLibrary("ggridges")
+loadLibrary("ggthemes")
+loadLibrary("car")
+loadLibrary("tidyverse")
+loadLibrary('lsr')
+#loadLibrary('ggmosaic')
+#loadLibrary('lme4')
+#loadLibrary('effsize')
+#loadLibrary('rstatix')
+
+```
+
+```{r results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+options(dplyr.summarise.inform = FALSE)
+```
+
+```{r}
+l1 <- read.csv('liveRun/3expLive_raw.csv')
+l2 <- read.csv('liveRun2/3expLive2_raw.csv')
+```
+
+```{r}
+trialData <- rbind(l1, l2)
+```
+
+Converting string columns to numeric
+
+```{r}
+#write.csv(trialData, "3expLive_all.csv")
+```
+
+## Duration spent
+
+```{r}
+#how many participants? 
+durationSummary<-  trialData %>% select(uid, sonaID, duration, credTime,confidenceTime,sharingTime, onlineResponseTime,commentTime) %>% group_by(uid, sonaID) %>% summarize(
+  meanTrialDuration = mean(duration, trim=.25), 
+  McredTime = mean(credTime, trim=.25), 
+  MconfidenceTime = mean(confidenceTime, trim=.25),
+  MsharingTime = mean(sharingTime, trim=.25),
+  MonlineResponseTime = mean(onlineResponseTime, trim=.25),
+  McommentTime = mean(commentTime, trim=.25)
+  )
+
+durationSummary
+```
+
+On average it seems to take 30 minutes per participant to complete the experiment.
+
+```{r}
+timeData <- trialData %>% select(uid, index,condition, mainHeadline, credTime, confidenceTime, sharingTime, onlineResponseTime, commentTime)
+
+timeDataLong <-timeData %>% pivot_longer(cols = ends_with("Time"), names_to = 'TimeType', values_to = 'duration')
+
+timeDataLong$TimeType <- factor(timeDataLong$TimeType, levels=c('credTime','confidenceTime','sharingTime','onlineResponseTime','commentTime'))
+```
+
+```{r}
+ggplot(timeDataLong, aes(x=TimeType, y=duration)) + geom_boxplot() + scale_x_discrete(guide = guide_axis(angle = 30)) + ylab("Duration (Seconds)") + xlab("Trial question") 
+```
+
+```{r}
+timeDataLong <- timeDataLong %>%
+  group_by(condition, TimeType) %>%
+  filter(duration > quantile(duration, 0.25) & duration < quantile(duration, 0.75))
+```
+
+```{r}
+ggplot(timeDataLong, aes(x=TimeType, y=duration)) + geom_boxplot() + scale_x_discrete(guide = guide_axis(angle = 30)) + ylab("Duration (Seconds)") + xlab("Trial question") 
+```
+
+## Looking for "speeders"
+
+```{r}
+#trial wise less than 1/3 of median trial time
+
+#trialData %>% filter(duration < median(trialData$duration)/3)
+```
+
+```{r}
+medianDuration <- median(trialData$duration)
+checkData <- trialData %>% filter(str_length(commentText) < 5 | duration < (medianDuration/3))
+dim(checkData)
+```
+
+```{r}
+#write.csv(checkData, "3expLive2_check.csv")
+```
+
+```{r}
+data <- anti_join(trialData, checkData, by = c("uid", "mainHeadline"))
+```
+
+## Basic analysis
+
+```{r}
+shareRatingSummary <-data %>% select(percCredibility, share) %>% group_by(percCredibility) %>% summarise(count = n(),
+                         mean = mean(share),
+                         sd = sd(share),
+                         se = sd/sqrt(count),
+                         ci = se * qt((1-0.05)/2 + .5, count-1))
+
+shareRatingSummary
+```
+
+```{r}
+ggplot(shareRatingSummary, aes(x=percCredibility, y=mean)) + 
+    geom_bar(position=position_dodge(), stat="identity", width = .7) +
+    geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.7)) + 
+   ylab("Mean Share Rating") + xlab("Perceived credibility") + 
+   theme_bw()  + theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1))
+```
+
+```{r}
+d1 <- read.csv('liveRun/3expLive1_demog.csv')
+d2 <- read.csv('liveRun2/3expLive2_demog.csv')
+demogData <- rbind(d1,d2)
+```
+
+```{r}
+demogData
+```
+
+```{r}
+#temp <- data %>% select(mainHeadline,headlineText,onlineResponse,percCredibility,groundTruth,confidence) %>% group_by(mainHeadline,headlineText,onlineResponse,percCredibility,groundTruth) %>% summarise(mConf = mean(confidence), count = n())
+
+#emp <- temp %>%  pivot_wider(
+ #    id_cols = c(mainHeadline, headlineText, groundTruth),  
+  #   names_from = c(percCredibility,onlineResponse) , values_from = c(mConf, count) )
+
+#write.csv(temp, "exp3_trial_4_summary.csv")
+```
+
+## Hypothesis and research questions
+
+H1. Participants will give less corrective comments compared to reinforcing comments.
+
+H2. Participants will be more discerning when giving corrective comments compared to reinforcing ones.
+
+H3. Participants will be more confident in their credibility assessment
+
+1.  a\. when giving comments compared to skipping.
+
+2.  b\. when giving corrective comments compared to reinforcing.
+
+## Analysis
+
+#### H1 - Out of the corrective comments only a small proportion is given online compared to reinforcing comments.
+
+People are more inclined to be skeptical of the headlines.
+
+```{r}
+table(data$percCredibility, data$onlineResponse)
+```
+
+```{r}
+agg_data <- data %>%
+  group_by(uid, percCredibility) %>%
+  summarise(
+    # Calculates the percentage of time each user chose to post the comment
+    prop_post = mean(onlineResponse == "onlineYes", na.rm = TRUE), 
+    .groups = "drop"
+  )
+
+# 2. Reshape the data for a paired analysis
+wide_data <- agg_data %>%
+  pivot_wider(
+    id_cols = uid, 
+    names_from = percCredibility, 
+    values_from = prop_post
+  ) %>%
+  # Drops participants who didn't encounter both tweet types to ensure valid pairing
+  drop_na()
+
+wide_data
+```
+
+```{r}
+t.test(wide_data$percFalse, wide_data$percTrue, paired = TRUE)
+```
+
+```{r}
+prop.test(table(data$percCredibility, data$onlineResponse))
+```
+
+```{r}
+# 1. Ensure your binary outcome is read as a factor by R
+data$onlineResponse <- as.factor(data$onlineResponse)
+
+# 2. Fit the Multi-Level Binary Logistic Regression
+# (1 | uid) controls for participant-level baseline posting tendencies
+# (1 | index) controls for specific tweet-level variance
+h1_model <- glmer(onlineResponse ~ percCredibility + (1 | uid) + (1 | index), 
+                  family = binomial(link = "logit"), 
+                  data = data)
+
+# 3. View the model summary and coefficients
+summary(h1_model)
+```
+
+```{r}
+# 4. Calculate estimated marginal means and run pairwise contrasts
+# type = "response" converts log-odds back into interpretable probabilities
+post_hoc_h1 <- emmeans(h1_model, pairwise ~ percCredibility, type = "response")
+
+# 5. Display the detailed post-hoc results with corrected degrees of freedom
+summary(post_hoc_h1)
+```
+
+```{r}
+timeSummary <- data %>% select(percCredibility,onlineResponse, credTime) %>% group_by(percCredibility, onlineResponse) %>% summarise(mTime = mean(credTime), count = n(), sd=sd(credTime), se = sd/sqrt(count),ci = se * qt((1-0.05)/2 + .5, count-1))
+
+timeSummary
+```
+
+```{r}
+ggplot(timeSummary, aes(x=percCredibility, y=mTime, fill = onlineResponse)) + 
+    geom_bar(position=position_dodge(), stat="identity", width = .7) +
+    geom_errorbar(aes(ymin=mTime-ci, ymax=mTime+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.7)) + 
+   ylab("Mean Duration") + xlab("Perceived credibility") + 
+   theme_bw()  + theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1))
+```
+
+```{r}
+leveneTest(credTime ~ percCredibility * onlineResponse, data = data)
+```
+
+```{r}
+cT.Aov <- aov(credTime ~ percCredibility * onlineResponse, data = data)
+summary(cT.Aov)
+
+TukeyHSD(cT.Aov)
+```
+
+There is no difference in time spent evaluating the credibility of the headlines where participants decided to comment online vs not.
+
+#### H2 - Participants will be more discerning when giving corrective comments compared to reinforcing ones.
+
+```{r}
+data <- data %>% mutate(classification = ifelse( groundTruth == 'FALSE' & percCredibility == 'percFalse', 'hit', ifelse(groundTruth == 'FALSE' & percCredibility != 'percFalse', 'miss',ifelse(groundTruth == 'TRUE' & percCredibility == 'percTrue', 'hit','miss'))))
+
+table(data$percCredibility, data$classification, data$onlineResponse)
+```
+
+```{r}
+
+data$classification <- as.factor(data$classification)
+data$onlineResponse <- as.factor(data$onlineResponse)
+data$percCredibility <- as.factor(data$percCredibility)
+
+h2_model <- glmer(classification ~ percCredibility * onlineResponse + (1 | uid) + (1 | index), 
+                  family = binomial(link = "logit"), 
+                  data = data)
+summary(h2_model)
+```
+
+```{r}
+post_hoc_h2 <- emmeans(h2_model, pairwise ~ percCredibility | onlineResponse, type = "response")
+
+summary(post_hoc_h2)
+```
+
+```{r}
+table(data$onlineResponse, data$classification)
+```
+
+```{r}
+prop.test(table(data$onlineResponse, data$classification))
+```
+
+People are more discerning when it comes comments given online compared those that were not given.
+
+```{r}
+temp <- data %>% filter(onlineResponse == 'onlineYes')
+table(temp$percCredibility, temp$classification)
+```
+
+```{r}
+prop.test(table(temp$percCredibility, temp$classification))
+```
+
+miss proportion is less in corrective comments compared to affirmative comments in comments that were given online.
+
+```{r}
+temp <- data %>% filter(onlineResponse == 'onlineNo')
+table(temp$percCredibility, temp$classification)
+```
+
+```{r}
+prop.test(table(temp$percCredibility, temp$classification))
+```
+
+With regards to comments that were not given online, people were more accurate when identifying true claims compared to false ones.
+
+```{r}
+chisq.test(table(data$percCredibility)) 
+```
+
+This is because people are more cynical - tend to assume that headlines are false.
+
+#### H3 Participants will be more confident in their credibility assessment
+
+1.  a\. when giving comments compared to skipping.
+
+2.  b\. when giving corrective comments compared to reinforcing.
+
+```{r}
+data <- data %>% 
+  mutate(onlineResponse1 = ifelse(onlineResponse == 'onlineYes', 'Yes','No'))
+
+data$classification <- as.character(data$classification)
+data$classification <- paste0(toupper(substr(data$classification, 1, 1)), 
+                              tolower(substr(data$classification, 2, nchar(data$classification))))
+
+data <- data %>% 
+  mutate(commentType = ifelse(percCredibility == 'percTrue','Reinforcing','Corrective'))
+```
+
+```{r}
+data$onlineResponse <- as.factor(data$onlineResponse)
+data$percCredibility <- as.factor(data$percCredibility)
+
+h3_model <- lmer(confidence ~ percCredibility * onlineResponse + (1 | uid) + (1 | index), 
+                 data = data)
+
+
+anova(h3_model)
+```
+
+```{r}
+h3a_test <- emmeans(h3_model, pairwise ~ onlineResponse)
+summary(h3a_test)
+```
+
+```{r}
+h3b_test <- emmeans(h3_model, pairwise ~ percCredibility | onlineResponse)
+summary(h3b_test)
+```
+
+```{r}
+
+confSummary <- data %>% select(commentType,onlineResponse1, confidence) %>% group_by(commentType,onlineResponse1) %>% summarise(mConf = mean(confidence), count = n(), sd=sd(confidence), se = sd/sqrt(count),ci = se * qt((1-0.05)/2 + .5, count-1))
+
+confSummary
+```
+
+```{r}
+#png(filename = 'conf.png', units = 'in', height = 8, width = 10,res = 300)
+ggplot(confSummary, aes(x=onlineResponse1, y=mConf, fill = commentType)) + 
+    geom_bar(position=position_dodge(), stat="identity", width = .7) +
+    geom_errorbar(aes(ymin=mConf-ci, ymax=mConf+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.7)) + 
+   ylab("Mean Confidence") + xlab("Comment given online?") + scale_fill_discrete(name = "Comment type") + theme_minimal()  + theme(text = element_text(family = "Times New Roman", size = 20)) 
+
+#dev.off()
+```
+
+```{r}
+leveneTest(confidence ~ percCredibility * onlineResponse, data = data)
+```
+
+```{r}
+rep.Aov <- aov(confidence ~ percCredibility * onlineResponse, data = data)
+summary(rep.Aov)
+
+TukeyHSD(rep.Aov)
+```
+
+```{r}
+rep.Aov.residuals <- residuals( object = rep.Aov )
+hist(rep.Aov.residuals)
+```
+
+```{r}
+qqnorm( y = rep.Aov.residuals )
+```
+
+```{r}
+shapiro.test(x= rep.Aov.residuals)
+```
+
+```{r}
+ggplot(data, aes(x = interaction(percCredibility, onlineResponse), y = confidence)) +
+  geom_boxplot() +
+  labs(x = "Combination of Col1 and Col2", y = "Column 3")
+```
+
+```{r}
+data$group <- interaction(data$percCredibility, data$onlineResponse)
+t<- oneway.test(confidence ~ group, data = data, var.equal = FALSE)
+t
+```
+
+```{r}
+games_howell_test(data, confidence~group, detailed = TRUE)
+```
+
+- `.y.`: the y (outcome) variable used in the test.
+
+- `group1,group2`: the compared groups in the pairwise tests.
+
+- `n1,n2`: Sample counts.
+
+- `estimate, conf.low, conf.high`: mean difference and its confidence intervals.
+
+- `statistic`: Test statistic (t-value) used to compute the p-value.
+
+- `df`: degrees of freedom calculated using Welch's correction.
+
+- `p.adj`: adjusted p-value using Tukey's method.
+
+- `method`: the statistical test used to compare groups.
+
+- `p.adj.signif`: the significance level of p-values.
+
+```{r}
+ggplot(data, aes(x= mainHeadline, y=confidence)) +  geom_point(position = position_dodge(width = 0.4)) + geom_smooth(span = 0.8) + scale_x_discrete(limits = c("h2","h4","h5", "h6", "h8", "h11", "h12", "h13", "h18", "h19", "h21", "h22", "h23", "h24", "h25", "h29", "h33", "h35", "h36", "h39")) + facet_wrap(vars(classification,onlineResponse)) 
+```
+
+```{r}
+ggplot(data, aes(x= mainHeadline, y=confidence)) +  geom_violin()  + scale_x_discrete(limits = c("h2","h4","h5", "h6", "h8", "h11", "h12", "h13", "h18", "h19", "h21", "h22", "h23", "h24", "h25", "h29", "h33", "h35", "h36", "h39")) + facet_wrap(vars(classification,onlineResponse)) 
+```
+
+```{r}
+ggplot(data, aes(x = confidence, y = mainHeadline)) +
+  geom_density_ridges() +
+  theme_ridges() + 
+  theme(legend.position = "none") + scale_y_discrete(limits = c("h2","h4","h5", "h6", "h8", "h11", "h12", "h13", "h18", "h19", "h21", "h22", "h23", "h24", "h25", "h29", "h33", "h35", "h36", "h39")) + facet_wrap(~onlineResponse + percCredibility)
+```
+
+```{r}
+kt<- kruskal.test(confidence~group, data=data)
+print(kt)
+```
+
+```{r}
+#summary(glht(t, linfct = mcp(group = "Tukey")))
+```
+
+```{r}
+
+#png(filename = 'props1.png', units = 'in', height = 8, width = 10,res = 300)
+ggplot(data = data) +
+  geom_mosaic(aes(x = product(onlineResponse1,commentType), fill=classification)) + labs(x='Comment type', y='Comment given online?')  + theme_minimal() + theme(axis.ticks=element_blank(), text = element_text(family = "Times New Roman", size=20),legend.box.margin=margin(-10,10,-10,-10)) + scale_fill_manual(values=c("#7bfc03", "#E69F00"), labels=c('Hit','Miss'), name = 'Classification')
+
+
+#dev.off()
+```
+
+```{r}
+reinfData <- data %>% filter(percCredibility == 'percTrue')
+table(reinfData$onlineResponse, reinfData$classification)
+```
+
+```{r}
+prop.test(table(reinfData$onlineResponse, reinfData$classification))
+```
+
+```{r}
+corrData <- data %>% filter(percCredibility == 'percFalse')
+table(corrData$onlineResponse, corrData$classification)
+```
+
+```{r}
+prop.test(table(corrData$onlineResponse, corrData$classification))
+```
+
+```{r}
+offlineData <- data %>% filter(onlineResponse == 'onlineNo')
+table(offlineData$percCredibility, offlineData$classification)
+```
+
+```{r}
+prop.test(table(offlineData$percCredibility, offlineData$classification))
+```
+
+```{r}
+table(data$onlineResponse, data$classification)
+```
+
+```{r}
+prop.test(table(offlineData$percCredibility, offlineData$classification))
+```
+
+```{r}
+ggplot(data=offlineData, aes(x=confidence,  fill=commentType)) +
+    geom_density(adjust=1.5, alpha=.5)
+```
+
+```{r}
+onlineData <- data %>% filter(onlineResponse =='onlineYes')
+```
+
+```{r}
+ggplot(data=onlineData, aes(x=confidence,  fill=commentType)) +
+    geom_density(adjust=1.5, alpha=.5)
+```
+
+```{r}
+data$politics <- as.factor(data$politics)
+data$socialMedia <- factor(data$socialMedia, levels=c("daily", "weekly", "monthly" ,"rarely",  "never", "na" ), ordered= TRUE)
+data$gender <- as.factor(data$gender)
+data$percCredibility <- as.factor(data$percCredibility)
+
+```
+
+```{r}
+model <- glmer(percCredibility ~ confidence + age + politics + socialMedia + gender + 
+               (1 | uid) + (1 | mainHeadline), 
+               data = data, family = binomial)
+```
+
+```{r}
+summary(model)
+```

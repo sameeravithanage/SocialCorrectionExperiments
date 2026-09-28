@@ -1,0 +1,375 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Start with a clean workspace
+
+```{r}
+rm(list=ls())
+```
+
+```{r}
+setwd("~/Projects/Phd/ExperimentData/1Exp/phase2")
+```
+
+The following defines a convenience function for loading libraries, installing if necessary.
+
+```{r}
+loadLibrary = function(packageName, suppressMessages = FALSE, githubRepo = NULL)
+ {
+  if (! require(packageName, character.only = TRUE)) {
+    if (! is.null(githubRepo)) {
+      loadLibrary("devtools")
+      devtools::install_github(githubRepo)    
+    }
+    else 
+      install.packages(packageName)
+  
+    if (suppressMessages)
+      suppressPackageStartupMessages(library(packageName, character.only = TRUE))
+    else 
+      library(packageName, character.only = TRUE)
+  }
+}  
+```
+
+Load some useful libraries.
+
+```{r}
+loadLibrary('psych')
+loadLibrary('lsr')
+loadLibrary("gplots")
+loadLibrary("jsonlite")
+loadLibrary("ggridges")
+loadLibrary("ggthemes")
+loadLibrary("lme4")
+loadLibrary("tidyverse")
+loadLibrary("cowplot")
+loadLibrary("gridExtra")
+```
+
+Load some test data to check whether data has been saved/exported/loaded correctly.
+
+```{r}
+source("Dataloaderp2.R")
+fd <- getData()
+```
+
+The main data frame of interest is the "trials" data-frame which contains one row per trial.
+
+The data frame is modified to include a new column which encodes re-tweeting a tweet with other participants to be 1 and not re-tweeting to be 0.
+
+```{r}
+fd$trials <- fd$trials %>% mutate(retValue = ifelse(retweetVal == 'rt_yes',1,0))
+fd$trials
+```
+
+Get CRT scores from CSV file
+
+```{r}
+crtScores = read.csv('./CRTScoreP2.csv')
+
+```
+
+## Demographic Summary of Participants
+
+```{r}
+demog <- fd$demographics
+feedbk <- fd$feedback
+```
+
+```{r}
+
+list_df <- list(demog, feedbk, crtScores)
+demogData <- list_df %>% reduce(inner_join, by='uid')
+demogData <- subset(demogData, select = -c(condition.x))
+demogData <- demogData %>% rename(condition = 'condition.y')
+
+demogData
+```
+
+Duration for the experiment
+
+```{r}
+trialDuration <- mean(fd$trials$duration/1000,  trim = .25)
+control <- fd$trials %>% filter(condition == 'CTRL')
+feedback <- fd$trials %>% filter(condition != 'CTRL')
+trialDurationControl <- mean(control$duration/1000,  trim = .25)
+trialDurationFeedback <- mean(feedback$duration/1000,  trim = .25)
+experimentDuration <- mean(as.integer(fd$completed$experimentEndTime) / 60000, trim = .25)
+
+cat("inter-quartile mean trial duration (seconds)", trialDuration, "\n")
+cat("inter-quartile mean trial duration (seconds) - control", trialDurationControl, "\n")
+cat("inter-quartile mean trial duration (seconds) - feedback", trialDurationFeedback, "\n")
+cat("inter-quartile mean experiment duration (minutes):", experimentDuration, "\n")
+```
+
+```{r}
+data <- fd$trials %>% filter(!uid %in% c('DaEqi25SK6z1TCtDLB5o', 'ZJJSDAk9A58a0uuTEvhe')) %>% select(uid, condition, trialIndex, prior, share, retweetVal, groundTruth) %>% mutate(percTruth = if_else(prior < 50, 'fake','real'), shared = if_else(share <50, 'notShared','Shared'))
+```
+
+```{r}
+ggplot(data, aes(x=prior, fill=groundTruth)) + geom_density(alpha=0.5, adjust=4)
+```
+
+```{r}
+ggplot(data, aes(x=share, fill=groundTruth)) + geom_density(alpha=0.5, adjust=4)
+```
+
+```{r}
+data
+```
+
+```{r}
+
+priorCalc <- function(data,blockName) {
+  # get the data columns relevant to the calculation
+  temp <- data %>% select(uid, condition, groundTruth, percTruth) %>% group_by(uid, condition, groundTruth, percTruth) %>% summarize(n=n())
+
+  temp <- temp %>% reshape2::dcast(uid + condition  ~ groundTruth + percTruth)
+  temp[is.na(temp)] <- 0
+
+  d <- temp %>% mutate(TRUE_real = TRUE_real   + .5,
+         FALSE_fake = FALSE_fake + .5,
+         FALSE_real   = FALSE_real   + .5,
+         TRUE_fake = TRUE_fake +.5) %>% 
+  mutate(hit_rate = (TRUE_real) / (TRUE_fake + TRUE_real),
+         fa_rate  = (FALSE_real) / (FALSE_real + FALSE_fake),
+         dprime   = qnorm(hit_rate) - qnorm(fa_rate),
+         c        = -1 * (qnorm(hit_rate) + qnorm(fa_rate)) / 2 )
+  colnames(d)[3:10] <- paste0(colnames(d)[3:10], blockName)
+  return(d)
+}
+```
+
+```{r}
+shareCalc <- function(data,blockName) {
+  # get the data columns relevant to the calculation
+  temp <- data %>% select(uid, condition, groundTruth, shared) %>% group_by(uid, condition, groundTruth, shared) %>% summarize(n=n())
+
+  temp <- temp %>% reshape2::dcast(uid + condition  ~ groundTruth + shared)
+  temp[is.na(temp)] <- 0
+
+  d <- temp %>% mutate(TRUE_Shared = TRUE_Shared   + .5,
+         FALSE_notShared = FALSE_notShared + .5,
+         FALSE_Shared   = FALSE_Shared   + .5,
+         TRUE_notShared = TRUE_notShared +.5) %>% 
+  mutate(hit_rate = (TRUE_Shared) / (TRUE_notShared + TRUE_Shared),
+         fa_rate  = (FALSE_Shared) / (FALSE_Shared + FALSE_notShared),
+         dprime   = qnorm(hit_rate) - qnorm(fa_rate),
+         c        = -1 * (qnorm(hit_rate) + qnorm(fa_rate)) / 2 )
+  colnames(d)[3:10] <- paste0(colnames(d)[3:10], blockName)
+  return(d)
+}
+```
+
+```{r}
+rtwtCalc <- function(data,blockName) {
+  # get the data columns relevant to the calculation
+  temp <- data %>% select(uid, condition, groundTruth, retweetVal) %>% group_by(uid, condition, groundTruth, retweetVal) %>% summarize(n=n())
+
+  temp <- temp %>% reshape2::dcast(uid + condition  ~ groundTruth + retweetVal)
+  temp[is.na(temp)] <- 0
+
+  d <- temp %>% mutate(TRUE_rt_yes = TRUE_rt_yes   + .5,
+         FALSE_rt_no = FALSE_rt_no + .5,
+         FALSE_rt_yes   = FALSE_rt_yes   + .5,
+         TRUE_rt_no = TRUE_rt_no +.5) %>% 
+  mutate(hit_rate = (TRUE_rt_yes) / (TRUE_rt_no + TRUE_rt_yes),
+         fa_rate  = (FALSE_rt_yes) / (FALSE_rt_yes + FALSE_rt_no),
+         dprime   = qnorm(hit_rate) - qnorm(fa_rate),
+         c        = -1 * (qnorm(hit_rate) + qnorm(fa_rate)) / 2 )
+  colnames(d)[3:10] <- paste0(colnames(d)[3:10], blockName)
+  return(d)
+}
+```
+
+```{r}
+A_block <- data %>% filter(trialIndex %in% (0:9))
+C_block <- data %>% filter(trialIndex %in% (40:49))
+B_block <- data %>% filter(trialIndex %in% (10:39))
+
+priorA <- priorCalc(A_block,'_prior_blockA')
+priorC <- priorCalc(C_block,'_prior_blockC')
+
+shareA <- shareCalc(A_block,'_share_blockA')
+shareC <- shareCalc(C_block,'_share_blockC')
+
+rtwtA <- rtwtCalc(A_block,'_rtwt_blockA')
+rtwtC <- rtwtCalc(C_block,'_rtwt_blockC')
+```
+
+```{r}
+list_df = list(priorA, priorC,shareA,shareC,rtwtA,rtwtC)
+final <- list_df %>% reduce(inner_join, by=c('uid','condition'))
+```
+
+```{r}
+round(final$c_prior_blockA,2)
+```
+
+```{r}
+round(final$c_prior_blockC,2)
+```
+
+```{r}
+final$dprimePriorDiff = final$dprime_prior_blockC - final$dprime_prior_blockA
+final$cPriorDiff = final$c_prior_blockC - final$c_prior_blockA
+```
+
+```{r}
+final$dprimeShareDiff = final$dprime_share_blockC - final$dprime_share_blockA
+final$cShareDiff = final$c_share_blockC - final$c_share_blockA
+```
+
+```{r}
+final$dprimeRtwtDiff = final$dprime_rtwt_blockC - final$dprime_rtwt_blockA
+final$cRtwtDiff = final$c_rtwt_blockC - final$c_rtwt_blockA
+```
+
+```{r}
+dprime.anova <- aov( dprimePriorDiff ~ condition, final )
+print(dprime.anova)
+summary(dprime.anova)
+```
+
+```{r}
+c.anova <- aov( cPriorDiff ~ condition, final )
+print(c.anova)
+summary(c.anova)
+```
+
+```{r}
+TukeyHSD(c.anova)
+```
+
+```{r}
+cPriorDiffSummary <-final %>% group_by(condition) %>% summarise(n = n(),
+                         mean = mean(cPriorDiff),
+                         sd = sd(cPriorDiff),
+                         se = sd/sqrt(n),
+                         ci = se * qt((1-0.05)/2 + .5, n-1))
+
+cPriorDiffSummary
+```
+
+```{r}
+cPriorDiffSummary$condition[cPriorDiffSummary$condition == 'CTRL'] <- 'Control'
+cPriorDiffSummary$condition[cPriorDiffSummary$condition == 'GRPN'] <- 'Critical'
+cPriorDiffSummary$condition[cPriorDiffSummary$condition == 'GRPP'] <- 'Constructive'
+
+#png("s1_c_prior_change.png", units="in", width=5, height=4, res=300)
+ggplot(cPriorDiffSummary, aes(x=condition, y=mean)) + 
+    geom_bar(position=position_dodge(), stat="identity", width = .5, fill="#41bbf0") +
+    geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.5)) + 
+   ylab("Criterion Change - Credibility") + xlab("Condition") + 
+   theme_bw()
+#dev.off()
+```
+
+```{r}
+plotmeans( formula = cPriorDiff ~ condition, data = final,  xlab = "Condition Group", ylab = "C Difference", n.label = FALSE )
+```
+
+```{r}
+dprimeShare.anova <- aov( dprimeShareDiff ~ condition, final )
+print(dprimeShare.anova)
+summary(dprimeShare.anova)
+```
+
+```{r}
+cShare.anova <- aov( cShareDiff ~ condition, final )
+print(cShare.anova)
+summary(cShare.anova)
+```
+
+```{r}
+dprimeRtwt.anova <- aov( dprimeRtwtDiff ~ condition, final )
+print(dprimeRtwt.anova)
+summary(dprimeRtwt.anova)
+```
+
+```{r}
+cRtwt.anova <- aov( cRtwtDiff ~ condition, final )
+print(cRtwt.anova)
+summary(cRtwt.anova)
+```
+
+```{r}
+TukeyHSD(cRtwt.anova)
+```
+
+```{r}
+cRTWTSummary <-final %>% group_by(condition) %>% summarise(n = n(),
+                         mean = mean(dprimeRtwtDiff),
+                         sd = sd(dprimeRtwtDiff),
+                         se = sd/sqrt(n),
+                         ci = se * qt((1-0.05)/2 + .5, n-1))
+
+cRTWTSummary
+```
+
+```{r}
+cRTWTSummary$condition[cRTWTSummary$condition == 'CTRL'] <- 'Control'
+cRTWTSummary$condition[cRTWTSummary$condition == 'GRPN'] <- 'Critical'
+cRTWTSummary$condition[cRTWTSummary$condition == 'GRPP'] <- 'Constructive'
+
+#png("s1_c_rtwt_change.png", units="in", width=5, height=4, res=300)
+
+ggplot(cRTWTSummary, aes(x=condition, y=mean)) + 
+    geom_bar(position=position_dodge(), stat="identity", width = .5, fill="#41bbf0") +
+    geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.5)) + 
+   ylab("Criterion Change - Sharing (Other Participants)") + xlab("Condition") + 
+   theme_bw()
+
+#dev.off()
+```
+
+```{r}
+plotmeans( formula = dprimeRtwtDiff ~ condition, data = final,  xlab = "Condition Group", ylab = "C Retweet Change", n.label = FALSE )
+```
+
+```{r}
+plotmeans( formula = cRtwtDiff ~ condition, data = final,  xlab = "Condition Group", ylab = "C Retweet Change", n.label = FALSE )
+```
+
+```{r}
+headlines <- fd$trials %>% select(mainHeadline, groundTruth, prior, share)
+headlineMetaData <- jsonlite::fromJSON("/Users/vithanage/Projects/ensemble/analysis/data/sam23_headlines.json")
+selectedMetaData <- headlineMetaData %>% select(id, headline)
+allHeadlineData <- left_join(headlines, selectedMetaData, by=c('mainHeadline'='id'))
+```
+
+```{r}
+summaryFalse <- allHeadlineData %>% filter(groundTruth == FALSE) %>% group_by(mainHeadline, headline) %>% summarise(m = mean(prior)) %>% arrange(m)
+summaryFalse
+write.csv(summaryFalse, 'falseheadlines.csv')
+```
+
+```{r}
+falseHeadlines <- headlines %>% filter(groundTruth == FALSE) %>% filter(mainHeadline %in% c('h6','h33','h30','h40','h29','h31','h7','h10','h32','h27')) 
+falsePlot <- ggplot(falseHeadlines, aes(x=prior, fill=mainHeadline)) + geom_density(alpha=0.5,adjust=2)
+falsePlot
+```
+
+```{r}
+summaryTrue <- allHeadlineData %>% filter(groundTruth == TRUE) %>% group_by(mainHeadline, headline) %>% summarise(m = mean(prior)) %>% arrange(m)
+summaryTrue
+write.csv(summaryTrue, 'trueheadlines.csv')
+```
+
+```{r}
+trueHeadlines <- headlines %>% filter(groundTruth == TRUE) %>% filter(mainHeadline %in% c('h22','h1','h4','h20','h15','h11','h3','h23','h16','h24')) 
+truPlot <- ggplot(trueHeadlines, aes(x=prior, fill=mainHeadline)) + geom_density(alpha=0.5,adjust=2)
+truPlot
+```
+
+```{r}
+ggsave("truPlot.png", plot = truPlot, width = 25, height = 20, units = "cm", dpi=700) 
+ggsave("falsePlot.png", plot = falsePlot, width = 25, height = 20, units = "cm", dpi=700) 
+```

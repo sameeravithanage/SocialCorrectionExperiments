@@ -1,0 +1,1153 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Start with a clean workspace
+
+```{r}
+rm(list=ls())
+```
+
+```{r}
+setwd("~/Projects/PhData/2Exp/exp2Analysis")
+```
+
+The following defines a convenience function for loading libraries, installing if necessary.
+
+```{r}
+loadLibrary = function(packageName, suppressMessages = FALSE, githubRepo = NULL)
+ {
+  if (! require(packageName, character.only = TRUE)) {
+    if (! is.null(githubRepo)) {
+      loadLibrary("devtools")
+      devtools::install_github(githubRepo)    
+    }
+    else 
+      install.packages(packageName)
+  
+    if (suppressMessages)
+      suppressPackageStartupMessages(library(packageName, character.only = TRUE))
+    else 
+      library(packageName, character.only = TRUE)
+  }
+}  
+```
+
+Load some useful libraries.
+
+```{r}
+loadLibrary('psych')
+loadLibrary("gplots")
+loadLibrary("jsonlite")
+loadLibrary("ggridges")
+loadLibrary("ggthemes")
+loadLibrary("lme4")
+loadLibrary('lmerTest')
+loadLibrary('emmeans')
+loadLibrary("tidyverse")
+loadLibrary("cowplot")
+loadLibrary("gridExtra")
+loadLibrary('effsize')
+loadLibrary('ggeffects')
+loadLibrary('sjPlot')
+loadLibrary('lsr')
+loadLibrary('rstatix')
+loadLibrary('car')
+```
+
+## Loading the necessary data
+
+```{r}
+
+trueHeadlines <-c('h22','h1','h4','h20','h15','h11','h3','h23','h16','h24')
+falseHeadlines <-c('h6','h33','h30','h40','h29','h31','h7','h10','h32','h27')
+headlineMetaData <- jsonlite::fromJSON("../data/sam23_headlines.json") %>% select(id, oldID,headline) %>% filter(id %in% c(trueHeadlines,falseHeadlines))
+
+source("FactCheckDataV1.R")
+fd <- getFactCheckTestDataV1()
+
+source("FactCheckDataPhase2.R")
+fdp2 <- getFactCheckTestDataPhase2()
+phase2Data <- fdp2$trials %>% filter(mainHeadline %in% c(trueHeadlines,falseHeadlines))
+
+source("FactCheckDataPhase1.R")
+fdp1 <- getFactCheckPhase1()
+phase1Data <- fdp1$trials %>% filter(mainHeadline %in% headlineMetaData[["oldID"]]) 
+```
+
+```{r}
+fd$trials
+```
+
+```{r}
+#trialData <- read.csv('data.csv')
+allTrialData <- fd$trials
+```
+
+```{r}
+numCols <- c('credibilitySection','sharingSection','trialEndTime','trialStartTime','commentSectionChoice','commentSectionText','onlineResponseSection')
+
+allTrialData[numCols] <- sapply(allTrialData[numCols],as.numeric)
+#sapply(DF, class)
+
+#factorCols <-c('trialType','mainHeadline','commentChoice','onlineResponse')
+```
+
+## Data checks
+
+check if the number of the same user has repeatedly filled out the experiment.
+
+```{r}
+n_distinct( fd$completed$mtWorkerId) == length(fd$completed$mtWorkerId)
+```
+
+*The are no duplicated users.*
+
+### Total time taken by condition
+
+```{r}
+fd$completed %>% select(condition, experimentEndTime) %>% group_by(condition) %>% summarise(totalDuration.Mins = mean(as.integer(experimentEndTime) / 60000, trim=.25))
+```
+
+Average duration for a trial by condition
+
+```{r}
+trialData <- allTrialData %>% filter(mainHeadline %in% c(trueHeadlines,falseHeadlines))
+trialData$index <- as.numeric(trialData$index)
+trialData <- trialData %>% mutate(percTruth = if_else(prior < 50, 'fake','real'))
+trialData <- trialData %>% mutate(percShare = if_else(prior < 50, 'no','yes'))
+```
+
+Trimmed mean time taken complete one trial in each condition
+
+```{r}
+trialData %>% select(condition,duration) %>% group_by(condition) %>% summarize(meanTrial.Seconds = mean(duration/1000, trim=.25))
+```
+
+Number of participants in each group
+
+```{r}
+trialData %>% select(uid, condition) %>% group_by(condition) %>% summarize(n=n_distinct(uid))
+```
+
+```{r}
+fd$demographics %>% select(condition, age) %>% group_by(condition) %>% summarise(m = mean(age, na.rm = TRUE), 
+    sd = sd(age, na.rm = TRUE),
+    n = n(),
+    missing = sum(is.na(age)),
+    mn = min(age, na.rm = TRUE),
+    mx = max(age, na.rm = TRUE)
+    )
+```
+
+```{r}
+fd$demographics %>% select(condition, gender) %>% group_by(condition, gender) %>% summarise(n = n())
+```
+
+```{r}
+fd$demographics %>% select(condition, socialMedia) %>% group_by(condition, socialMedia) %>% summarise(n = n())
+```
+
+```{r}
+#uid - id for each participant, colName - share/prior column, factCol - groundTruthCol
+
+ratingCalc <- function(data,colName,blockName,fun,test) {
+  # get the data columns relevant to the calculation
+  data <- data %>% select(!! sym(colName), uid, groundTruth,condition)
+  
+  #calculate mean prior rating without ground Truth.
+  all_data <- data %>% select(!! sym(colName), uid, condition) %>% group_by(uid,condition) %>% summarise(all=fun(!! sym(colName)))
+  
+  #calculate mean priors by uid and groud truth.
+  temp <- data %>% group_by(uid,groundTruth,condition) %>% summarise(Param = fun(!! sym(colName)))
+  
+  #convert the table form long to wide from and join it with all means 
+  temp<- spread(temp, groundTruth, Param)
+  d <- all_data %>% inner_join(temp, by=c('uid','condition'))
+  
+  #calculate truth discernment and add a new column
+  d$Diff = d$`TRUE` - d$`FALSE`
+  
+  d <- d %>% rename(True = `TRUE`, False = `FALSE` )
+  
+  colnames(d)[3:5] <- paste0(colnames(d[,c(3:5)]), blockName)
+  colnames(d)[3:5] <- paste0(test, colnames(d[,c(3:5)]))
+
+  return(d)
+}
+```
+
+```{r}
+priorData <- ratingCalc(trialData,'prior' ,'_belief',mean,'mean_') %>% rename(TruthDisc = Diff )
+shareData <- ratingCalc(trialData,'share' ,'_share',mean,'mean_') %>% rename(shareDisc = Diff )
+```
+
+## Truth Discernment between groups.
+
+Mean truth discernment between participants in each group. The error bars represent 95% ci.
+
+```{r}
+plotmeans(formula=TruthDisc~condition,data=priorData)
+```
+
+```{r}
+ggplot(trialData, aes(x=prior, fill=groundTruth)) + geom_density(alpha=0.5) + facet_grid(~condition)
+```
+
+```{r}
+#ggplot(trialData, aes(x=prior)) + geom_density() + facet_grid(condition~groundTruth)
+```
+
+```{r}
+ggplot(trialData, aes(x=prior)) + geom_histogram(bins = 20) + facet_grid(condition~groundTruth)
+```
+
+```{r}
+t.test(TruthDisc~condition, data=priorData)
+```
+
+```{r}
+priorData$condition <- factor(priorData$condition)
+cohen.d(TruthDisc~condition, data=priorData)
+```
+
+*T test results indicate that participants in the comment group are more discerning than the ones in the control group.*
+
+```{r}
+tdSummary <-priorData %>% group_by(condition) %>% summarise(count = n(),
+                         mean = mean(TruthDisc),
+                         sd = sd(TruthDisc),
+                         se = sd/sqrt(count),
+                         ci = se * qt((1-0.05)/2 + .5, count-1))
+
+tdSummary
+```
+
+```{r}
+tdSummary$condition <- as.character(tdSummary$condition)
+tdSummary$condition[tdSummary$condition == 'CTRL'] <- 'Control'
+tdSummary$condition[tdSummary$condition == 'EXP'] <- 'Comment'
+tdSummary$condition <- factor(tdSummary$condition)
+
+png("s2_truthDisc.png", units="in", width=5, height=4, res=300)
+ggplot(tdSummary, aes(x=condition, y=mean)) + 
+    geom_bar(position=position_dodge(), stat="identity", width = .5, fill="#41bbf0") +
+    geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.7)) + 
+   ylab("Mean Truth Discernment") + xlab("Condition") + 
+   theme_bw() 
+dev.off()
+```
+
+### Time spent on evaluating credibility
+
+```{r}
+trialData <- trialData %>% mutate(credTime = (sharingSection-credibilitySection)/1000,
+                                  shareTime = (trialEndTime-sharingSection)/1000,
+                                  comChoiceTime = ifelse(condition=='EXP',(commentSectionText-commentSectionChoice)/1000,0),
+                                  comTextTime = ifelse(condition=='EXP',(onlineResponseSection-commentSectionText)/1000,0),
+                                  comOnlineTime = ifelse(condition=='EXP',(credibilitySection-onlineResponseSection)/1000,0))
+```
+
+```{r}
+timeData<- trialData %>% select(uid, index,condition,credTime, shareTime,comChoiceTime, comTextTime, comOnlineTime)
+
+timeDataLong <-timeData %>% pivot_longer(cols = ends_with("Time"), names_to = 'TimeType', values_to = 'duration')
+
+timeDataLong$TimeType <- factor(timeDataLong$TimeType, levels=c('comChoiceTime','comTextTime','comOnlineTime','credTime','shareTime'))
+```
+
+```{r}
+ggplot(timeDataLong, aes(x=TimeType, y=duration)) + geom_boxplot() + facet_grid(~condition) + scale_x_discrete(guide = guide_axis(angle = 30)) + ylab("Duration (Seconds)") + xlab("Trial section") 
+```
+
+*There are some big outliers in the data. Specially in the control condition. Therefore I'll drop the lower and upper quantiles and analyse the 2nd and 3rd quantiles.*
+
+```{r}
+timeDataLongFiltered <- timeDataLong %>%
+  group_by(condition, TimeType) %>%
+  filter(duration > quantile(duration, 0.25) & duration < quantile(duration, 0.75))
+```
+
+```{r}
+ggplot(timeDataLongFiltered, aes(x=TimeType, y=duration)) + geom_boxplot() + facet_grid(~condition) + scale_x_discrete(guide = guide_axis(angle = 30)) + ylab("Duration (Seconds)") + xlab("Trial section") 
+```
+
+```{r}
+timetypes <- c('credTime', 'comChoiceTime')
+credTimes <- as.data.frame(timeDataLongFiltered %>% filter(TimeType %in% timetypes))
+credTimes$combination <- interaction(credTimes$TimeType, credTimes$condition, drop = TRUE)
+```
+
+```{r}
+leveneTest(duration ~ combination, data = credTimes)
+```
+
+```{r}
+oneway.test(duration ~ combination, data = credTimes, 
+                                  var.equal = FALSE)
+```
+
+```{r}
+games_howell_test(credTimes, duration ~ combination, detailed=TRUE)
+```
+
+```{r}
+durationSummary <-credTimes %>% group_by(combination) %>% summarise(count = n(),
+                         mean = mean(duration),
+                         sd = sd(duration),
+                         se = sd/sqrt(count),
+                         ci = se * qt((1-0.05)/2 + .5, count-1))
+
+durationSummary
+```
+
+```{r}
+durationSummary$combination <- as.character(durationSummary$combination)
+durationSummary$combination[durationSummary$combination == 'credTime.CTRL'] <- 'Credibility - Control'
+durationSummary$combination[durationSummary$combination == 'comChoiceTime.EXP'] <- 'Comment type - Comment'
+durationSummary$combination[durationSummary$combination == 'credTime.EXP'] <- 'Credibility - Comment'
+durationSummary$combination <- factor(durationSummary$combination)
+
+#png("s2_timeDiff.png", units="in", width=5, height=4, res=300)
+ggplot(durationSummary, aes(x=combination, y=mean)) + 
+    geom_bar(position=position_dodge(), stat="identity", width = .5, fill="#41bbf0") +
+    geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.7)) + 
+   ylab("Mean Duration (Seconds)") + xlab("Trial section") + 
+   theme_bw() 
+#dev.off()
+```
+
+*It appears that participants have spent a lot of time determining whether to give a corrective or an affirmative comment. Next, they have taken a lot of time to type out the comment. Therefore, it seems that participants evaluate the credibility of the claim at the first question (section) of the trial and have spent more time compared to the time participants in the control section have spent doing the same. In return participants in the comments condition haven't spent much time in the credibility rating question compared to control.*
+
+```{r}
+tTestData1 <- timeDataLongFiltered %>% filter(TimeType =='credTime')
+t.test(duration~condition, data=tTestData1)
+```
+
+```{r}
+tTestData2 <- timeDataLongFiltered %>% filter(TimeType =='shareTime')
+t.test(duration~condition, data=tTestData2)
+```
+
+```{r}
+time_model <- lmer(duration ~ combination + (1 | uid) + (1 | index), data = credTimes)
+```
+
+```{r}
+anova(time_model)
+```
+
+```{r}
+post_hoc <- emmeans(time_model, pairwise ~ combination, adjust = "tukey")
+summary(post_hoc)
+```
+
+###  Checking truth discernment in the first 5 and the last 5 trials in the comment condition
+
+```{r}
+tdStart <- trialData %>% filter(index < 5)
+tdEnd <- trialData %>% filter(index > 14)
+priorStart <- ratingCalc(tdStart,'prior' ,'_belief',mean,'mean_') %>% rename(TruthDisc = Diff )
+priorEnd <- ratingCalc(tdEnd,'prior' ,'_belief',mean,'mean_') %>% rename(TruthDisc = Diff )
+priorStart$section <- 'beginning'
+priorEnd$section <- 'ending'
+priorSecData <- rbind(priorStart,priorEnd)
+```
+
+```{r}
+#when generating the configs, headline ids were shuffled for each participant in each condition. So there can be instances where either first 5 or the last 5 headlines are either true or false effectively rendering NA values in the truth disc column. So a couple or rows had to be dropped because of this. 
+sumPriorSecData <-priorSecData %>% drop_na()%>% group_by(condition,section) %>% summarise(count = n(),
+                         mean = mean(TruthDisc),
+                         sd = sd(TruthDisc),
+                         se = sd/sqrt(count),
+                         ci = se * qt((1-0.05)/2 + .5, count-1))
+
+sumPriorSecData
+```
+
+```{r}
+ggplot(sumPriorSecData, aes(x=section, y=mean,fill=condition)) + 
+    geom_bar(position=position_dodge(), stat="identity", width = .7) +
+    geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.7)) + 
+   ylab("Mean Truth Discernment") + xlab("Study section - beginning/end") + 
+   theme_bw() 
+```
+
+```{r}
+tTestData3 <- priorSecData %>% filter(condition =='EXP')
+t.test(TruthDisc~section, data=tTestData3)
+```
+
+*Participants appears to be more discerning towards the end of the study in the comment condition. However, the difference between the truth discernment at the start and the truth discernment at the end is not significant.*
+
+```{r}
+tdTimeStart <- timeDataLongFiltered %>% filter(index < 5)
+tdTimeEnd <- timeDataLongFiltered %>% filter(index > 14)
+tdTimeStart$section <- 'beginning'
+tdTimeEnd$section <- 'ending'
+TimeSecData <- rbind(tdTimeStart,tdTimeEnd)
+```
+
+```{r}
+durationSecSummary <-TimeSecData %>% group_by(condition,section,TimeType) %>% summarise(count = n(),
+                         mean = mean(duration),
+                         sd = sd(duration),
+                         se = sd/sqrt(count),
+                         ci = se * qt((1-0.05)/2 + .5, count-1))
+
+durationSecSummary
+```
+
+```{r}
+ggplot(durationSecSummary, aes(x=TimeType, y=mean,fill=section)) + 
+    geom_bar(position=position_dodge(), stat="identity", width = .7) +
+    geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.7)) + 
+   ylab("Mean Duration (Seconds)") + xlab("Phase of the trial") + 
+   theme_bw() + facet_grid(~condition) + theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1))
+```
+
+*Mean duration spent on each of the trial phases in both conditions seems to be slightly less at the end compared to the same at the beginning.*
+
+#### Signal Detection Approach on Truth Discernment.
+
+```{r}
+priorCalc <- function(data,blockName) {
+  # get the data columns relevant to the calculation
+  temp <- data %>% select(uid, condition, groundTruth, percTruth) %>% group_by(uid, condition, groundTruth, percTruth) %>% summarize(n=n())
+
+  temp <- temp %>% reshape2::dcast(uid + condition  ~ groundTruth + percTruth)
+  temp[is.na(temp)] <- 0
+
+  d <- temp %>% mutate(TRUE_real = TRUE_real   + .5,
+         FALSE_fake = FALSE_fake + .5,
+         FALSE_real   = FALSE_real   + .5,
+         TRUE_fake = TRUE_fake +.5) %>% 
+  mutate(hit_rate = (TRUE_real) / (TRUE_fake + TRUE_real),
+         fa_rate  = (FALSE_real) / (FALSE_real + FALSE_fake),
+         dprime   = qnorm(hit_rate) - qnorm(fa_rate),
+         c        = -1 * (qnorm(hit_rate) + qnorm(fa_rate)) / 2 )
+  colnames(d)[3:10] <- paste0(colnames(d)[3:10], blockName)
+  return(d)
+}
+```
+
+```{r}
+shareCalc <- function(data,blockName) {
+  temp <- data %>% select(uid, condition, groundTruth, percShare) %>% group_by(uid, condition, groundTruth, percShare) %>% summarize(n=n())
+
+  temp <- temp %>% reshape2::dcast(uid + condition  ~ groundTruth + percShare)
+  temp[is.na(temp)] <- 0
+
+  d <- temp %>% mutate(TRUE_yes = TRUE_yes   + .5,
+         FALSE_no = FALSE_no + .5,
+         FALSE_yes   = FALSE_yes   + .5,
+         TRUE_no = TRUE_no +.5) %>% 
+  mutate(hit_rate = (TRUE_yes) / (TRUE_no + TRUE_yes),
+         fa_rate  = (FALSE_yes) / (FALSE_yes + FALSE_no),
+         dprime   = qnorm(hit_rate) - qnorm(fa_rate),
+         c        = -1 * (qnorm(hit_rate) + qnorm(fa_rate)) / 2 )
+  colnames(d)[3:10] <- paste0(colnames(d)[3:10], blockName)
+  return(d)
+}
+```
+
+##### Comparing control and comment condition
+
+```{r}
+trialData
+```
+
+```{r}
+sdTest <- shareCalc(trialData, '_share')
+```
+
+```{r}
+sdTest
+```
+
+```{r}
+sdDataAll <- priorCalc(trialData,'_prior')
+```
+
+```{r}
+sdDataAll
+```
+
+```{r}
+expData <- trialData %>% filter(condition == 'EXP')
+ctrlData <- trialData %>% filter(condition == 'CTRL')
+print('Comment Condition')
+addmargins(table(expData$groundTruth,expData$percTruth))
+prop.table(table(expData$groundTruth,expData$percTruth),1)
+print('Control Condition')
+addmargins(table(ctrlData$groundTruth,ctrlData$percTruth)) 
+prop.table(table(ctrlData$groundTruth,ctrlData$percTruth),1)
+```
+
+*From the confusion matrix data it appears that people are more accurate in identifying true news in the comment condition than the control condition.*
+
+```{r}
+t.test(dprime_prior~condition, data=sdDataAll)
+t.test(c_prior~condition, data=sdDataAll)
+```
+
+*The SDT analysis of Truth discernment show that participants are more accurate in the commenting condition than the control condition because dprime is higher. Also, criterion analysis shows that participants are more liberal in perceiving claims as true in the comment condition compared to control condition.*
+
+```{r}
+# For your first t-test
+cohen.d(dprime_prior ~ condition, data=sdDataAll)
+
+# For your second t-test
+cohen.d(c_prior ~ condition, data=sdDataAll)
+```
+
+```{r}
+t.test(dprime_share~condition, data=sdTest)
+t.test(c_share~condition, data=sdTest)
+```
+
+##### Comparing the first 5 and last 5 trials in the comment condition
+
+```{r}
+sdDataStart <- priorCalc(tdStart,'_prior')
+sdDataEnd <- priorCalc(tdEnd,'_prior')
+```
+
+```{r}
+sdDataStart$section <- 'beginning'
+sdDataEnd$section <- 'ending'
+sdSecData <- rbind(sdDataStart,sdDataEnd)
+```
+
+```{r}
+tTestData4 <- sdSecData %>% filter(condition =='EXP')
+t.test(dprime_prior~section, data=tTestData4)
+t.test(c_prior~section, data=tTestData4)
+```
+
+*dPrime nor criterion has changed in the first and the second half of the comment condition.*
+
+## Share Discernment between groups
+
+```{r}
+ggplot(trialData, aes(x=share, fill=groundTruth)) + geom_density(alpha=0.5) + facet_grid(~condition)
+```
+
+```{r}
+ggplot(phase2Data, aes(x=share, fill=groundTruth)) + geom_density(alpha=0.5) + facet_grid(~condition)
+```
+
+```{r}
+ggplot(phase1Data, aes(x=share, fill=groundTruth)) + geom_density(alpha=0.5) + facet_grid(~condition)
+```
+
+```{r}
+ggplot(trialData, aes(x=share)) + geom_histogram()+facet_grid(condition~groundTruth)
+```
+
+```{r}
+ggplot(phase2Data, aes(x=share)) + geom_histogram()+facet_grid(condition~groundTruth)
+```
+
+```{r}
+ggplot(phase1Data, aes(x=share)) + geom_histogram()+facet_grid(condition~groundTruth)
+```
+
+```{r}
+sd1<-trialData %>% select(share, groundTruth)
+sd2<-phase1Data %>% select(share, groundTruth)
+sd3<-phase2Data %>% select(share, groundTruth)
+
+sd1$source <-'exp2'
+sd2$source <-'phase1'
+sd3$source <-'phase2'
+
+sdAll <- rbind(sd1,sd2,sd3)
+```
+
+```{r}
+shareRatingSummary <-sdAll %>% group_by(source, groundTruth) %>% summarise(count = n(),
+                         mean = mean(share),
+                         sd = sd(share),
+                         se = sd/sqrt(count),
+                         ci = se * qt((1-0.05)/2 + .5, count-1))
+
+shareRatingSummary
+```
+
+```{r}
+ggplot(shareRatingSummary, aes(x=groundTruth, y=mean,fill=source)) + 
+    geom_bar(position=position_dodge(), stat="identity", width = .7) +
+    geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.7)) + 
+   ylab("Mean share rating (0-100)") + xlab("Ground Truth by experiment") + 
+   theme_bw() + theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1))
+```
+
+*Data indicate the compared to previous experiments, sharing has gone down in this experiment. Even in the control group. Sharing is influenced by "timeliness" of the headline. Since these headlines were collected last year it is likely that the participants did not share most of the headlines.*
+
+```{r}
+plotmeans(formula=shareDisc~condition,data=shareData)
+```
+
+```{r}
+t.test(shareDisc~condition, data=shareData)
+cohen.d(shareDisc~condition, data=shareData)
+```
+
+```{r}
+plotmeans(formula=mean_all_share~condition,data=shareData)
+```
+
+```{r}
+t.test(mean_all_share~condition, data=shareData)
+```
+
+## Comment Frequency
+
+### Confusion Matrix of comment data
+
+```{r}
+expData$commentOnline <- paste(expData$commentChoice, expData$onlineResponse)
+
+cat('Confusion Matrix 1 - Ground truth by Comment Type')
+addmargins(table(expData$commentChoice,expData$groundTruth))
+addmargins(prop.table(table(expData$commentChoice,expData$groundTruth),1),2) 
+
+cat('\n Confusion Matrix 2 - Comment type by Online Response')
+addmargins(table(expData$commentChoice,expData$onlineResponse))
+addmargins(prop.table(table(expData$commentChoice,expData$onlineResponse),1),2)
+
+cat('\n Confusion Matrix 3 - Comment type by Online Response by Ground Truth')
+addmargins(table(expData$commentOnline,expData$groundTruth))
+addmargins(prop.table(table(expData$commentOnline,expData$groundTruth),1),2) 
+```
+
+*Initial observations from confusion matrix 1:*
+
+1.  *Participants appear to be more discerning when giving corrective comments compared to agreeing comments. That is they have identified false claims and given corrective comments more than they have identified true claims and given agreeing comments.*
+2.  *Participants seems to give more agreeing comments compared to corrective comments. It might be easier to agree than to correct because when correcting you need to have facts. Further people like to avoid confrontations and conflicts. This provides evidence to the second hypothesis that participants are conservative when giving corrective comments (need to run a t test and verify).*
+
+*Initial observations from confusion matrix 2:*
+
+1.  *Participants seem to give more agreeing comments online compared to corrective comments. That is they are more conservative when giving corrective comments online.*
+
+*Initial observations from confusion matrix 3:*
+
+1.  *Agreeing comments both given online and not give online seem to have a similar split in accuracy (Discernment is not different). However, corrective comments posted online seem to be discerning compared to that not posted online.*
+
+### Testing observations from confusion matrix 1
+
+```{r}
+tData<-expData %>% select(uid,commentChoice) %>% group_by(uid,commentChoice) %>% summarise(count=n())
+t.test(count~commentChoice, data=tData)
+```
+
+*Participants were more likely to give agreeing comments compared to corrective comments. - Confusion matrix 1*
+
+My notes: ran an association test from lsr - it does not address the question of accuracy. just that people are more likely to give agreeing comments to true ones and corrective ones to false claims
+
+```{r}
+corrCommentData <- expData %>% group_by(uid,commentChoice,groundTruth) %>% summarise(count=n()) %>% filter(commentChoice=='commentCorrect')
+agreeCommentData <- expData %>% group_by(uid,commentChoice,groundTruth) %>% summarise(count=n()) %>% filter(commentChoice=='commentAgree')
+
+corrCommentData <- pivot_wider(corrCommentData, names_from = c(commentChoice,groundTruth), values_from = count)
+agreeCommentData <- pivot_wider(agreeCommentData, names_from = c(commentChoice,groundTruth), values_from = count)
+corrCommentData[is.na(corrCommentData)] <- 0
+agreeCommentData[is.na(agreeCommentData)] <- 0
+
+corrCommentData$disc <- (corrCommentData$commentCorrect_FALSE - corrCommentData$commentCorrect_TRUE)/(corrCommentData$commentCorrect_FALSE + corrCommentData$commentCorrect_TRUE) 
+agreeCommentData$disc <- (agreeCommentData$commentAgree_TRUE - agreeCommentData$commentAgree_FALSE)/(agreeCommentData$commentAgree_TRUE + agreeCommentData$commentAgree_FALSE)
+```
+
+```{r}
+t.test(corrCommentData$disc, agreeCommentData$disc)
+```
+
+*Even though discernment is higher for corrective comments compared to agreeing comments, the difference in discernment is not significant.*
+
+### Testing observations from confusion matrix 2
+
+```{r}
+corrCommentData <- expData %>% group_by(uid,commentChoice,onlineResponse) %>% summarise(count=n()) %>% filter(commentChoice=='commentCorrect')
+agreeCommentData <- expData %>% group_by(uid,commentChoice,onlineResponse) %>% summarise(count=n()) %>% filter(commentChoice=='commentAgree')
+
+corrCommentData <- pivot_wider(corrCommentData, names_from = c(commentChoice,onlineResponse), values_from = count)
+agreeCommentData <- pivot_wider(agreeCommentData, names_from = c(commentChoice,onlineResponse), values_from = count)
+
+corrCommentData[is.na(corrCommentData)] <- 0
+agreeCommentData[is.na(agreeCommentData)] <- 0
+
+corrCommentData$onlineCorrRate <- corrCommentData$commentCorrect_onlineYes/(corrCommentData$commentCorrect_onlineNo + corrCommentData$commentCorrect_onlineYes)
+agreeCommentData$onlineAgreeRate <- agreeCommentData$commentAgree_onlineYes/(agreeCommentData$commentAgree_onlineNo + agreeCommentData$commentAgree_onlineYes)
+```
+
+```{r}
+t.test(corrCommentData$onlineCorrRate, agreeCommentData$onlineAgreeRate)
+```
+
+*Even though participants tend to give agreeing comments more than corrective comments online the proportion of online comments to total number of comments is not significant between corrective and online comments.*
+
+### Testing observations from confusion matrix 3
+
+```{r}
+corrCommentData <- expData %>% group_by(uid,commentChoice,groundTruth,onlineResponse) %>% summarise(count=n()) %>% filter(commentChoice=='commentCorrect')
+agreeCommentData <- expData %>% group_by(uid,commentChoice,groundTruth,onlineResponse) %>% summarise(count=n()) %>% filter(commentChoice=='commentAgree')
+
+corrCommentData <- pivot_wider(corrCommentData, names_from = c(commentChoice,groundTruth,onlineResponse), values_from = count)
+agreeCommentData <- pivot_wider(agreeCommentData, names_from = c(commentChoice,groundTruth,onlineResponse), values_from = count)
+corrCommentData[is.na(corrCommentData)] <- 0
+agreeCommentData[is.na(agreeCommentData)] <- 0
+
+corrCommentData$onlineTotal <- corrCommentData$commentCorrect_FALSE_onlineYes + corrCommentData$commentCorrect_TRUE_onlineYes
+corrCommentData$offlineTotal <- corrCommentData$commentCorrect_FALSE_onlineNo + corrCommentData$commentCorrect_TRUE_onlineNo
+
+agreeCommentData$onlineTotal <- agreeCommentData$commentAgree_FALSE_onlineYes + agreeCommentData$commentAgree_TRUE_onlineYes
+agreeCommentData$offlineTotal <- agreeCommentData$commentAgree_FALSE_onlineNo + agreeCommentData$commentAgree_TRUE_onlineNo
+
+corrCommentData$onlineDisc <- (corrCommentData$commentCorrect_FALSE_onlineYes-corrCommentData$commentCorrect_TRUE_onlineYes)/corrCommentData$onlineTotal
+corrCommentData$offlineDisc <- (corrCommentData$commentCorrect_FALSE_onlineNo-corrCommentData$commentCorrect_TRUE_onlineNo)/corrCommentData$offlineTotal
+
+agreeCommentData$onlineDisc <- (agreeCommentData$commentAgree_TRUE_onlineYes-agreeCommentData$commentAgree_FALSE_onlineYes)/agreeCommentData$onlineTotal
+agreeCommentData$offlineDisc <- (agreeCommentData$commentAgree_TRUE_onlineNo-agreeCommentData$commentAgree_FALSE_onlineNo)/agreeCommentData$offlineTotal
+
+```
+
+```{r}
+t.test(corrCommentData$onlineDisc,agreeCommentData$onlineDisc)
+```
+
+*Discernment of corrective comments given online is greater than agreeing comments given online but not significant*
+
+```{r}
+t.test(corrCommentData$onlineDisc,corrCommentData$offlineDisc)
+t.test(agreeCommentData$onlineDisc,agreeCommentData$offlineDisc)
+```
+
+## Prior ratings given to comments
+
+```{r}
+expData <- expData %>% mutate(priorConfidence = ifelse(commentChoice=='commentCorrect',100-prior,prior))
+```
+
+```{r}
+ggplot(expData, aes(x=prior, fill=commentChoice)) + geom_density(alpha=0.5) + xlab("Prior ratings given to comments given online and not given online") + ylab("Density")
+```
+
+*The graph shows that participants have given more extreme values to corrective comments compared to agreeing comments. However, there are a number of corrective comments with a high prior rating as well.*
+
+```{r}
+t.test(priorConfidence~commentChoice, data=expData)
+```
+
+*A t test result reveals that the participants gave higher prior ratings to corrective comments on average compared to agreeing comments. The result is significant.*
+
+```{r}
+commentDataOnline <- expData %>% filter(onlineResponse =='onlineYes')
+```
+
+```{r}
+ggplot(commentDataOnline, aes(x=prior, fill=commentChoice)) + geom_density(alpha=0.5)
+```
+
+```{r}
+t.test(priorConfidence~commentChoice, data=commentDataOnline)
+```
+
+*When we look at the prior ratings given to comments that were given online, in contrast to previous result there is a significant difference between prior ratings given to corrective and agreeing comments such that mean rating given to corrective comments are less than that or agreeing comments. This mainly seem to be stem from a number of corrective comments that have gotten high prior ratings.*
+
+*Therefore, the comments were analysed where prior rating \> 50 but given corrective comment and prior \< 50 but given agreeing comments to understand potential reasons for this.*
+
+[*Corrective comments prior \> 50*]{.underline}
+
+- *The content is probably true but I do not 'agree' with it. Ideological misalignment.*
+
+- *Not sure if the content is true or not.*
+
+[*Agreeing comments prior \< 50*]{.underline}
+
+- *The content is 'interesting' if true, therefore I agree.*
+
+- *Not sure if the content is true or not.*
+
+*After analyzing the comments manually a new column was made to classify the given comments as agreeing or corrective. Here agreeing is defined as comments given assuming the claim is true and corrective is defined as comments given assuming the claim is false or questioning the validity of the claim.*
+
+```{r}
+expData.2 <- read.csv('editedCommentData.csv')
+```
+
+```{r}
+ggplot(expData.2, aes(x=prior, fill=commentManual)) + geom_density(alpha=0.5) + xlab("Prior ratings given to comments given online and not given online") + ylab("Density")
+```
+
+```{r}
+
+allPariticpants <- unique(expData$uid)
+allChoices <- unique(expData$commentChoice)
+allResponses <- unique(expData$onlineResponse)
+allTruths <- unique(expData$groundTruth)
+
+all_combinations.1 <- expand.grid(uid = allPariticpants, commentChoice = allChoices, onlineResponse = allResponses)
+
+all_combinations.2 <- expand.grid(uid = allPariticpants, commentChoice = allChoices, onlineResponse = allResponses, groundTruth = allTruths)
+
+temp <-  trialData %>% filter(condition =='EXP') %>% select(uid, onlineResponse, commentChoice)  %>% count(commentChoice, onlineResponse, uid)
+
+temp.2 <-  trialData %>% filter(condition =='EXP') %>% select(uid, onlineResponse, commentChoice, groundTruth)  %>% count(commentChoice, onlineResponse, uid, groundTruth)
+
+df_merged <- merge(all_combinations.1, temp, by = c("uid", "onlineResponse", "commentChoice"), all.x = TRUE)
+
+df_merged.2 <- merge(all_combinations.2, temp.2, by = c("uid", "onlineResponse", "commentChoice","groundTruth"), all.x = TRUE)
+
+df_merged$n[is.na(df_merged$n)] <- 0
+df_merged.2$n[is.na(df_merged.2$n)] <- 0
+```
+
+```{r}
+replyGraphData <- df_merged %>% select(commentChoice,onlineResponse, n) 
+
+summarizedRDGraphData <-replyGraphData %>% group_by(commentChoice,onlineResponse) %>% summarise(count = n(),
+                         mean = mean(n),
+                         sd = sd(n),
+                         se = sd/sqrt(count),
+                         ci = se * qt((1-0.05)/2 + .5, count-1))
+
+summarizedRDGraphData
+```
+
+```{r}
+ggplot(summarizedRDGraphData, aes(x=onlineResponse, y=mean,fill=commentChoice)) + 
+    geom_bar(position=position_dodge(), stat="identity", width = .7) +
+    geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.7)) + 
+   ylab("Mean Response") + xlab("") + 
+   theme_bw() 
+```
+
+*participants give less corrective comments compared to agreeing comments.*
+
+```{r}
+onlineRepData <- df_merged %>% filter(onlineResponse =='onlineYes')
+
+t.test(n~commentChoice, data=onlineRepData)
+
+
+onlineRepData <- df_merged %>% filter(onlineResponse =='onlineNo')
+
+t.test(n~commentChoice, data=onlineRepData)
+```
+
+```{r}
+rep.Aov <- aov(n ~ commentChoice + onlineResponse, df_merged)
+summary(rep.Aov)
+```
+
+```{r}
+TukeyHSD(rep.Aov)
+```
+
+```{r}
+repFreqs <- pivot_wider(df_merged, names_from = c(onlineResponse, commentChoice), values_from = n)
+
+repFreqs$corrRate <- repFreqs$onlineYes_commentCorrect/(repFreqs$onlineYes_commentCorrect + repFreqs$onlineNo_commentCorrect)
+repFreqs$AgreeRate <- repFreqs$onlineYes_commentAgree/(repFreqs$onlineYes_commentAgree + repFreqs$onlineNo_commentAgree)
+
+repFreqs[is.na(repFreqs)] <- 0
+repFreqs
+```
+
+```{r}
+freqData <- repFreqs %>% select(uid, corrRate, AgreeRate) %>% pivot_longer(-uid)
+freqData
+```
+
+```{r}
+summarizedFreqGraphData <-freqData %>% group_by(name) %>% summarise(count = n(),
+                         mean = mean(value),
+                         sd = sd(value),
+                         se = sd/sqrt(count),
+                         ci = se * qt((1-0.05)/2 + .5, count-1))
+
+summarizedFreqGraphData
+```
+
+```{r}
+ggplot(summarizedFreqGraphData, aes(x=name, y=mean)) + 
+    geom_bar(position=position_dodge(), stat="identity", width = .7) +
+    geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.7)) + 
+   ylab("Mean Response") + xlab("") + 
+   theme_bw() 
+```
+
+```{r}
+plotmeans(formula=value~name,data=freqData)
+```
+
+```{r}
+t.test(formula=value~name,data=freqData)
+```
+
+*even though participants gave less corrective comments compared to affirmative ones, it as proportion, there is no significant difference between comments given online vs not given between corrective and affirmative comments.*
+
+## Comment Discernment
+
+```{r}
+replyGraphData.2 <- df_merged.2 %>% select(commentChoice,onlineResponse, groundTruth, n) 
+
+summarizedRDGraphData.2 <-replyGraphData.2 %>% group_by(commentChoice,onlineResponse, groundTruth) %>% summarise(count = n(),
+                         mean = mean(n),
+                         sd = sd(n),
+                         se = sd/sqrt(count),
+                         ci = se * qt((1-0.05)/2 + .5, count-1))
+
+summarizedRDGraphData.2
+```
+
+```{r}
+ggplot(summarizedRDGraphData.2, aes(x=commentChoice, y=mean,fill=groundTruth)) + 
+    geom_bar(position=position_dodge(), stat="identity", width = .7) +
+    geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.7)) + 
+   ylab("Mean Response") + xlab("") + 
+   theme_bw() + facet_grid(~onlineResponse)
+```
+
+```{r}
+onlineDiscData <- df_merged.2 %>% filter(onlineResponse =='onlineYes' & commentChoice =='commentCorrect')
+
+t.test(n~groundTruth, data=onlineDiscData)
+```
+
+```{r}
+onlineDiscData <- df_merged.2 %>% filter(onlineResponse =='onlineYes' & commentChoice =='commentAgree')
+
+t.test(n~groundTruth, data=onlineDiscData)
+```
+
+```{r}
+onlineDiscData <- df_merged.2 %>% filter(onlineResponse =='onlineNo' & commentChoice =='commentCorrect')
+
+t.test(n~groundTruth, data=onlineDiscData)
+
+onlineDiscData <- df_merged.2 %>% filter(onlineResponse =='onlineNo' & commentChoice =='commentAgree')
+
+t.test(n~groundTruth, data=onlineDiscData)
+```
+
+```{r}
+replyData <- pivot_wider(df_merged.2, names_from = c(onlineResponse, commentChoice,groundTruth), values_from = n)
+
+replyData$discCorr = (replyData$onlineYes_commentCorrect_FALSE/(replyData$onlineYes_commentCorrect_FALSE + replyData$onlineYes_commentCorrect_TRUE)) - (replyData$onlineYes_commentCorrect_TRUE/(replyData$onlineYes_commentCorrect_FALSE + replyData$onlineYes_commentCorrect_TRUE))
+
+replyData$discAgree = (replyData$onlineYes_commentAgree_TRUE/(replyData$onlineYes_commentAgree_FALSE + replyData$onlineYes_commentAgree_TRUE)) - (replyData$onlineYes_commentAgree_FALSE/(replyData$onlineYes_commentAgree_FALSE + replyData$onlineYes_commentAgree_TRUE))
+```
+
+```{r}
+repData <- replyData %>% select(uid,discCorr,discAgree) %>% pivot_longer(-uid)
+repData[is.na(repData)] <- 0
+
+repDiscData <- repData %>% filter(name %in% c('discCorr','discAgree'))
+```
+
+```{r}
+plotmeans(formula=value~name,data=repDiscData)
+```
+
+```{r}
+t.test(formula=value~name,data=repDiscData)
+```
+
+```{r}
+cohen.d(formula=value~name,data=repDiscData)
+```
+
+## Analyzing prior and share ratings
+
+```{r}
+t.test(priorConfidence~commentChoice, data=h2.data)
+```
+
+```         
+```
+
+```         
+```
+
+```{r}
+ggplot(h2.online, aes(x=prior)) + geom_histogram() + facet_wrap(~commentChoice)
+```
+
+```{r}
+t.test(priorConfidence~commentChoice, data=h2.online)
+```
+
+### Individual level prior
+
+```{r}
+h2.Ind<-h2.data %>% group_by(uid, commentChoice) %>% summarise(meanConf = mean(priorConfidence, ), meanPrior = mean(prior))
+```
+
+```{r}
+ggplot(h2.Ind, aes(x=meanPrior, fill=commentChoice)) + geom_density(alpha=0.5)
+```
+
+```{r}
+t.test(meanConf~commentChoice, data=h2.Ind)
+```
+
+```{r}
+h2.In.Online<-h2.data %>%filter(onlineResponse=='onlineYes') %>%group_by(uid, commentChoice) %>% summarise(meanConf = mean(priorConfidence), meanPrior = mean(prior))
+```
+
+```{r}
+ggplot(h2.In.Online, aes(x=meanPrior, fill=commentChoice)) + geom_density(alpha=0.5)
+```
+
+```{r}
+plotmeans(meanConf~commentChoice, data=h2.In.Online)
+```
+
+```{r}
+t.test(meanConf~commentChoice, data=h2.In.Online)
+```
+
+```{r}
+cohen.d(meanConf~commentChoice, data=h2.In.Online)
+```
+
+## Getting the comment data out.
+
+```{r}
+commentData <- trialData %>% select(uid, condition,groundTruth,commentChoice,onlineResponse,commentText,mainHeadline,prior,share) %>% filter(condition=='EXP')
+
+headlineMetaData <- jsonlite::fromJSON("../data/sam23_headlines.json")
+selectedMetaData <- headlineMetaData %>% select(id, headline)
+
+allCommentData <- left_join(commentData, selectedMetaData, by=c('mainHeadline'='id'))
+allCommentData <- allCommentData %>% left_join(fd$demographics, by = c('uid'))
+write.csv(allCommentData, 'commentData2.1.csv')
+```
+
+```{r}
+allCommentData %>% select(uid, politics) %>% group_by(politics) %>% summarise(count = n()/20)
+```
+
+```{r}
+onlineRatePolitics<-allCommentData %>% select(uid, politics, onlineResponse) %>% group_by(uid, politics,onlineResponse) %>% summarize(c=n()/20) %>% filter(onlineResponse =='onlineYes') %>% select(politics,c) %>% group_by(politics) %>% summarise(m=mean(c))
+
+onlineRatePolitics
+```
+
+```{r}
+ggplot(onlineRatePolitics, aes(x=politics,y=m)) + geom_bar(stat='identity') + 
+  scale_x_discrete(limits = c('soc','anarch','none','libert','strongLib','modLib','slightLib','middle','slightCons','modCons','strongCons'),guide = guide_axis(angle = 30)) 
+```
+
+```{r}
+
+commentPlotData <- allCommentData %>%
+  group_by(politics, onlineResponse) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+ggplot(commentPlotData,aes(x=politics, y=count, fill=onlineResponse)) +
+  geom_bar(stat='identity', position = 'dodge') + 
+  scale_x_discrete(guide = guide_axis(angle = 30))
+  
+```
+
+run a mixed effect model to see if more truth discernment has any relationship with number of online feedback given.
+
+## Linear Mixed Models
+
+```{r}
+lmeData <- expData %>% select(uid,mainHeadline,prior,share, commentChoice, onlineResponse,groundTruth) %>%mutate(priorConfidence = ifelse(commentChoice=='commentCorrect',100-prior,prior))
+
+lmeData$onlineResponse <- factor(lmeData$onlineResponse)
+lmeData$commentChoice <- factor(lmeData$commentChoice)
+lmeData$prior <- scale(lmeData$prior)
+lmeData$share <- scale(lmeData$share)
+lmeData$priorConfidence <- scale(lmeData$priorConfidence)
+```
+
+What factors predicts the likelihood of giving online comments?
+
+```{r}
+m1 <- glmer(onlineResponse ~ commentChoice + priorConfidence + (1|uid) ,data = lmeData, family = binomial)
+summary(m1)
+```
+
+```{r}
+plot_model(m1, type = "pred", terms = c('priorConfidence','commentChoice'))
+```
+
+users are more conservative when giving corrective comments compared to agreeing comments.
+
+<https://stackoverflow.com/questions/75933888/how-to-plot-binomial-generalized-mixed-effects-model-with-95-ci-error-bars-in-g>
+
+<https://stats.stackexchange.com/questions/226946/r-lmer-vs-glmer>
+
+```{r}
+ggplot(lmeData, aes(x=priorConfidence, fill=commentChoice)) + geom_density(alpha=0.5)
+```
+
+```{r}
+replyData.2 <- data.frame(replyData)
+replyData.2[is.na(replyData.2)] <- 0
+
+tdData <- priorData %>% filter(condition=='EXP') %>% select(uid, TruthDisc)
+lmeData.2<- merge(x = replyData.2, y = tdData, by = "uid", all = TRUE)
+```
+
+```{r}
+#m2 <- lmer(TruthDisc ~ no of correcitve comments+ no of agreeting comments ,data=lmeData.2)
+```
+
+```{r}
+countsData.1<- expData %>%filter(onlineResponse=='onlineYes') %>% select(uid, commentChoice) %>% group_by(uid,commentChoice) %>% summarise(count =n()) 
+
+countsData.1<-pivot_wider(countsData.1, names_from = c(commentChoice), values_from = count)
+
+expTDData <- priorData %>% filter(condition=='EXP') %>% select(uid, TruthDisc)
+
+countsData.1<- merge(x = countsData.1, y = expTDData, by = "uid", all = TRUE)
+```
+
+```{r}
+ggplot(countsData.1, aes(x = commentCorrect, y = commentAgree, color = TruthDisc)) +
+  geom_point()
+```
+
+```{r}
+m2<-lm(TruthDisc ~ commentCorrect+ commentAgree ,data=countsData.1)
+summary(m2)
+```
+
+```{r}
+rateData <- repFreqs %>% select(uid, corrRate, AgreeRate)
+rateData<- merge(x = rateData, y = expTDData, by = "uid", all = TRUE)
+```
+
+```{r}
+ggplot(rateData, aes(x = corrRate, y = AgreeRate, color = TruthDisc)) +
+  geom_point()
+```
+
+```{r}
+m3<-lm(TruthDisc ~ corrRate+ AgreeRate ,data=rateData)
+summary(m3)
+```

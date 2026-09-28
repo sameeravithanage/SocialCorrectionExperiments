@@ -1,0 +1,231 @@
+---
+title: "Trial Run - Reliability of Social Correction"
+author: 'Sameera Vithanage'
+output:
+  bookdown::pdf_document2:
+    toc: true
+    toc_depth: 3
+    number_section: false
+  bookdown::html_document2: default
+---
+
+## Detailed Statistical Analysis
+
+```{r results='hide', echo=FALSE}
+#Start with a clean workspace
+rm(list=ls())
+```
+
+```{r results='hide', echo=FALSE}
+setwd("~/Projects/Phd/Data/3Exp/trialRun1")
+```
+
+```{r results='hide', echo=FALSE}
+#The following defines a convenience function for loading libraries, installing if necessary.
+loadLibrary = function(packageName, suppressMessages = TRUE, githubRepo = NULL)
+ {
+  if (! require(packageName, character.only = TRUE)) {
+    if (! is.null(githubRepo)) {
+      loadLibrary("devtools")
+      devtools::install_github(githubRepo)    
+    }
+    else 
+      install.packages(packageName)
+  
+    if (suppressMessages)
+      suppressPackageStartupMessages(library(packageName, character.only = TRUE))
+    else 
+      library(packageName, character.only = TRUE)
+  }
+}  
+```
+
+```{r results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+#Load some useful libraries.
+
+loadLibrary('psych')
+loadLibrary("gplots")
+loadLibrary("jsonlite")
+loadLibrary("ggridges")
+loadLibrary("ggthemes")
+loadLibrary("lme4")
+loadLibrary("tidyverse")
+loadLibrary("cowplot")
+loadLibrary("gridExtra")
+loadLibrary('effsize')
+loadLibrary('ggeffects')
+loadLibrary('sjPlot')
+loadLibrary('lsr')
+loadLibrary('PerformanceAnalytics')
+```
+
+```{r results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+options(dplyr.summarise.inform = FALSE)
+```
+
+```{r}
+source("DataloaderE3.R")
+fd <- getFactCheckTestDataV2()
+trialData <- fd$trials
+
+columns_to_convert <- c("credibilitySection", "slider-share-start", "prior","sharingSection","trialStartTime","share","commentChoiceSection","trialEndTime","slider-pre-start")
+trialData[, columns_to_convert] <- lapply(trialData[, columns_to_convert], as.numeric)
+
+trialData <- trialData %>% mutate(credTime = (sharingSection - credibilitySection)/1000, 
+                     shareTime= (trialEndTime - sharingSection)/1000,
+                     commentChoiceTime = (credibilitySection-commentChoiceSection)/1000,
+                     duration = duration/1000,
+                     confidence = ifelse(commentChoice == 'commentCorrect', (100-prior),prior),
+                     commentCategory = ifelse(commentChoice %in% c('commentAgree','commentDisagree'),'reinforce', ifelse(commentChoice == 'commentCorrect','corrective','skip')))
+```
+
+```{r}
+#how many participants? 
+durationSummary<-  trialData %>% select(uid, duration, credTime,shareTime,commentChoiceTime) %>% group_by(uid) %>% summarize(meanTrialDuration = mean(duration, trim=.25), meanCredT = mean(credTime, trim=.25), meanShareT = mean(shareTime, trim=.25), meanComT = mean(commentChoiceTime, trim=.25))
+
+durationSummary
+```
+
+```{r}
+trialData %>% filter(uid == 'EtHvQBnzal6eGzsra0S6')
+#this participant has taken a day to complete the first trial. then the rest of them are normal. 
+```
+
+```{r}
+trialData %>% filter(uid == 'QuD5AiEsJ3mNn4dQvnLV')
+```
+
+```{r}
+countSummary <- trialData %>% group_by(uid) %>%
+  # Summarize counts for each category (using dplyr's summarise function)
+  summarise(
+    disagree_count = sum(commentChoice == "commentDisagree"),
+    correct_count = sum(commentChoice == "commentCorrect"),
+    agree_count = sum(commentChoice == "commentAgree"),
+    skip_count = sum(commentChoice == "commentSkip")
+  )
+
+countSummary <- countSummary %>% mutate(total = (disagree_count + correct_count + agree_count + skip_count), skipPerc = (skip_count/total)*100, affirmPerc = ((disagree_count+agree_count)/total)*100, correctPerc = (correct_count/total)*100)
+
+countSummary
+```
+
+```{r}
+summary <- merge(countSummary, durationSummary, by = "uid")
+```
+
+```{r}
+summary
+```
+
+how much do people comment?
+
+how big of a sample do I need?
+
+```{r}
+write.csv(summary, "exp2-1-trial.csv")
+```
+
+## Headline Analysis
+
+```{r}
+headLineData <- trialData %>% select(mainHeadline, groundTruth,prior, share,commentChoice) %>% group_by(mainHeadline, groundTruth) %>% summarise(meanCred = mean(prior), meanShare = mean(share), disagree_count = sum(commentChoice == "commentDisagree") , correct_count = sum(commentChoice == "commentCorrect"), agree_count = sum(commentChoice == "commentAgree"), skip_count = sum(commentChoice == "commentSkip"))
+
+headLineData
+```
+
+```{r}
+hdf <- jsonlite::fromJSON("../sam24_headlines.json") %>% rename(headlineText = headline)
+hdf <- hdf %>% select(id,headlineText)
+```
+
+```{r}
+headlineSummary <- merge(headLineData, hdf, by.x = "mainHeadline", by.y = "id")
+```
+
+```{r}
+headlineSummary
+```
+
+```{r}
+write.csv(headlineSummary, "exp2-1-headLine.csv")
+```
+
+what headlines gets mostly commented on?
+
+<https://docs.google.com/spreadsheets/d/1-zy_BV30jkrz6t7HddzrUNz5l6PmwLyV1GJ9GhdMy6A/edit#gid=2024150021>
+
+Did the design work? Do credibility ratings agree with comment choices?
+
+```{r}
+trialData %>% select(uid, commentChoice, prior, mainHeadline) %>% filter(commentChoice == 'commentCorrect' & prior >= 50)
+```
+
+```{r}
+trialData %>% select(uid, commentChoice, prior, mainHeadline) %>% filter(commentChoice == "commentDisagree" & prior < 50)
+```
+
+```{r}
+trialData %>% select(uid, commentChoice, prior, mainHeadline) %>% filter(commentChoice == "commentAgree" & prior < 50)
+```
+
+8.75% of the comments do not match their credibility ratings.
+
+```{r}
+credSummary <- trialData %>% select(commentChoice, prior) %>% group_by(commentChoice) %>% summarise(count = n(),meanCred = mean(prior),  sd = sd(prior),se = sd/sqrt(count),ci = se * qt((1-0.05)/2 + .5, count-1))
+
+credSummary
+```
+
+```{r}
+ggplot(credSummary, aes(x=commentChoice, y=meanCred)) + 
+    geom_bar(position=position_dodge(), stat="identity", width = .7) +
+    geom_errorbar(aes(ymin=meanCred-ci, ymax=meanCred+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.7)) + 
+   ylab("Mean credibility rating") + xlab("Choice of Comments") + 
+   theme_bw() + ggtitle('Credibility ratings given to comment choices')
+```
+
+```{r}
+catSummary <- trialData %>% select(commentCategory, confidence) %>% group_by(commentCategory) %>% summarise(count = n(),mean = mean(confidence),  sd = sd(confidence),se = sd/sqrt(count),ci = se * qt((1-0.05)/2 + .5, count-1))
+
+catSummary
+```
+
+```{r}
+ggplot(catSummary, aes(x=commentCategory, y=mean)) + 
+    geom_bar(position=position_dodge(), stat="identity", width = .7) +
+    geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.7)) + 
+   ylab("Mean confidence rating") + xlab("Comment Type") + 
+   theme_bw() + ggtitle('Confidence ratings given by comment type')
+```
+
+```{r}
+ggplot(trialData, aes(x=prior, fill=commentCategory)) + geom_density(alpha=0.5) + xlab("Credibility ratings given to online comments") + ylab("Density")
+```
+
+```{r}
+trialData$commentChoice <- as.factor(trialData$commentChoice)
+trialData$commentCategory <- as.factor(trialData$commentCategory)
+goodnessOfFitTest(trialData$commentCategory)
+```
+
+```{r}
+goodnessOfFitTest(trialData$commentChoice)
+```
+
+```{r}
+temp <- trialData %>% filter(commentCategory %in% c('corrective', 'reinforce')) %>% select(commentCategory, groundTruth) %>% mutate(classification = ifelse( groundTruth == 'FALSE' & commentCategory == 'corrective', 'hit',
+                                         ifelse(groundTruth == 'FALSE' & commentCategory != 'corrective', 'miss',
+                                                ifelse(groundTruth == 'TRUE' & commentCategory == 'reinforce', 'hit','miss'))))
+
+temp$commentCategory <- factor(temp$commentCategory)
+table(temp %>% select(commentCategory, classification))
+```
+
+```{r}
+prop.test(table(temp %>% select(commentCategory, classification)))
+```

@@ -1,0 +1,561 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Start with a clean workspace
+
+```{r}
+rm(list=ls())
+```
+
+The following defines a convenience function for loading libraries, installing if necessary.
+
+```{r}
+loadLibrary = function(packageName, suppressMessages = FALSE, githubRepo = NULL)
+ {
+  if (! require(packageName, character.only = TRUE)) {
+    if (! is.null(githubRepo)) {
+      loadLibrary("devtools")
+      devtools::install_github(githubRepo)    
+    }
+    else 
+      install.packages(packageName)
+  
+    if (suppressMessages)
+      suppressPackageStartupMessages(library(packageName, character.only = TRUE))
+    else 
+      library(packageName, character.only = TRUE)
+  }
+}  
+```
+
+Load some useful libraries.
+
+```{r}
+loadLibrary('psych')
+loadLibrary('lsr')
+loadLibrary("gplots")
+loadLibrary("jsonlite")
+loadLibrary("ggridges")
+loadLibrary("ggthemes")
+loadLibrary("lme4")
+loadLibrary("tidyverse")
+loadLibrary("cowplot")
+```
+
+Load some test data to check whether data has been saved/exported/loaded correctly.
+
+```{r}
+source("Dataloaderp2.R")
+fd <- getData()
+```
+
+The main data frame of interest is the "trials" data-frame which contains one row per trial.
+
+The data frame is modified to include a new column which encodes re-tweeting a tweet with other participants to be 1 and not re-tweeting to be 0.
+
+```{r}
+fd$trials <- fd$trials %>% mutate(retValue = ifelse(retweetVal == 'rt_yes',1,0))
+fd$trials
+```
+
+Get CRT scores from CSV file
+
+```{r}
+crtScores = read.csv('./CRTScoreP2.csv')
+
+```
+
+## Demographic Summary of Participants
+
+```{r}
+demog <- fd$demographics
+feedbk <- fd$feedback
+```
+
+```{r}
+
+list_df <- list(demog, feedbk, crtScores)
+demogData <- list_df %>% reduce(inner_join, by='uid')
+demogData <- subset(demogData, select = -c(condition.x))
+demogData <- demogData %>% rename(condition = 'condition.y')
+
+demogData
+```
+
+Duration for the experiment
+
+```{r}
+trialDuration <- mean(fd$trials$duration/1000,  trim = .25)
+control <- fd$trials %>% filter(condition == 'CTRL')
+feedback <- fd$trials %>% filter(condition != 'CTRL')
+trialDurationControl <- mean(control$duration/1000,  trim = .25)
+trialDurationFeedback <- mean(feedback$duration/1000,  trim = .25)
+experimentDuration <- mean(as.integer(fd$completed$experimentEndTime) / 60000, trim = .25)
+
+cat("inter-quartile mean trial duration (seconds)", trialDuration, "\n")
+cat("inter-quartile mean trial duration (seconds) - control", trialDurationControl, "\n")
+cat("inter-quartile mean trial duration (seconds) - feedback", trialDurationFeedback, "\n")
+cat("inter-quartile mean experiment duration (minutes):", experimentDuration, "\n")
+```
+
+Same function to calculate mean rating, mean true rating, mean false rating, difference between true and false ratings
+
+```{r}
+#uid - id for each participant, colName - share/prior column, factCol - groundTruthCol
+
+ratingCalc <- function(data,colName,blockName,fun,test) {
+  # get the data columns relevant to the calculation
+  data <- data %>% select(!! sym(colName), uid, groundTruth)
+  
+  #get the data columns needed to calculate the mean prior without ground cond.
+  all_data <- data %>% select(!! sym(colName), uid)
+  
+  #calculate mean prior rating without ground Truth.
+  all_data <- data %>% select(!! sym(colName), uid) %>% group_by(uid) %>% summarise(all_=fun(!! sym(colName)))
+  
+  #calculate mean priors by uid and groud truth.
+  temp <- data %>% group_by(uid,groundTruth) %>% summarise(Param = fun(!! sym(colName)))
+  
+  #convert the table form long to wide from and join it with all means 
+  temp<- spread(temp, groundTruth, Param)
+  d <- all_data %>% inner_join(temp, by=c('uid'))
+  
+  #calculate truth discernment and add a new column
+  d$Diff = d$`TRUE` - d$`FALSE`
+  
+  d <- d %>% rename(True = `TRUE`, False = `FALSE` )
+  
+  colnames(d)[2:5] <- paste0(colnames(d[,c(2:5)]), blockName)
+  colnames(d)[2:5] <- paste0(test, colnames(d[,c(2:5)]))
+
+  return(d)
+}
+```
+
+Filter out data from the from participants who did not believe there are other participants
+
+```{r}
+trialData <- fd$trials %>% filter(!feedback_q2 == '0-p')
+```
+
+Get data for A and C blocks for each participant
+
+```{r}
+#temp <- fd$trials %>% filter(!feedback_q2 == '0-p')
+
+#A_block <- temp %>% filter(trialIndex %in% (0:9))
+#C_block <- temp %>% filter(trialIndex %in% (40:49))
+
+A_block <- trialData %>% filter(trialIndex %in% (0:9))
+C_block <- trialData %>% filter(trialIndex %in% (40:49))
+B_block <- trialData %>% filter(trialIndex %in% (10:39))
+
+priorA <- ratingCalc(A_block,'prior' ,'belief_A',mean,'mean_')
+priorC <- ratingCalc(C_block,'prior' ,'belief_C',mean,'mean_')
+
+shareA <- ratingCalc(A_block,'share' ,'share_A',mean,'mean_')
+shareC <- ratingCalc(C_block,'share' ,'share_C',mean,'mean_')
+
+retwtA <- ratingCalc(A_block,'retValue' ,'retwt_A',sum,'sum_')
+retwtC <- ratingCalc(C_block,'retValue' ,'retwt_C',sum,'sum_')
+retwtB <- ratingCalc(B_block,'retValue' ,'retwt_B',sum,'sum_')
+
+dim(priorA)
+dim(priorC)
+dim(shareA)
+dim(shareC)
+dim(retwtA)
+dim(retwtC)
+dim(retwtB)
+```
+
+```{r}
+temp_demograhics <- demogData %>% select(uid, condition, crt_total)
+list_df = list(priorA, priorC, shareA, shareC, retwtA, retwtB,retwtC ,temp_demograhics)
+final <- list_df %>% reduce(inner_join, by='uid')
+final <- final %>% mutate(ConditionType = if_else(condition == 'CTRL', 'NoFeedback','Feedback'))
+
+```
+
+Filter out participants who did not get feedback in the B block in feedback conditions
+
+```{r}
+final <- final %>% filter(!(sum_Falseretwt_B == 0 & ConditionType == 'Feedback'))
+```
+
+Number of participants in each group before analysis.
+
+```{r}
+table(final$condition)
+```
+
+# Analyzing credibility ratings
+
+Hypothesis: People will get more accurate (improved truth discernment) in C block than A block after receiving feedback in B block compared to the control group.
+
+```{r}
+#Filter out the columns needed and create a dataframe.
+priorData <- final %>% select(uid, condition, ConditionType, mean_all_belief_A, mean_Falsebelief_A,mean_Truebelief_A,mean_Diffbelief_A,mean_all_belief_C, mean_Falsebelief_C,mean_Truebelief_C,mean_Diffbelief_C, crt_total)
+
+#calculate the differences between C block and A block prior ratings for each participant
+priorData$mean_all_belief_Diff = priorData$mean_all_belief_C - priorData$mean_all_belief_A
+
+priorData$mean_True_belief_Diff = priorData$mean_Truebelief_C - priorData$mean_Truebelief_A
+
+priorData$mean_False_belief_Diff = priorData$mean_Falsebelief_C - priorData$mean_Falsebelief_A
+
+priorData$truthDiscImprovement = priorData$mean_Diffbelief_C - priorData$mean_Diffbelief_A
+
+```
+
+## Means and SD of differences of prior ratings
+
+```{r}
+summPriorData <- priorData %>% select(condition,mean_all_belief_Diff,mean_True_belief_Diff, mean_False_belief_Diff, truthDiscImprovement) %>% group_by(condition) %>% summarise(allBeliefChange = mean(mean_all_belief_Diff),allBeliefChangeSD = sd(mean_all_belief_Diff), TrueBeliefChange = mean(mean_True_belief_Diff), TrueBeliefChangeSD = sd(mean_True_belief_Diff), FalseBeliefChange = mean(mean_False_belief_Diff), FalseBeliefChangeSD = sd(mean_False_belief_Diff), TruthDiscImprovement = mean(truthDiscImprovement), truthDiscImprovementSD = sd(truthDiscImprovement))
+
+summPriorData
+```
+
+#### Truth Discernment Change Across Conditions
+
+```{r}
+plotmeans( formula = truthDiscImprovement ~ condition, data = priorData,  xlab = "Condition Group", ylab = "Truth Discernment Change", n.label = FALSE )
+```
+
+#### Overall Belief Change Across Conditions
+
+```{r}
+plotmeans( formula = mean_all_belief_Diff ~ condition, data = priorData,  xlab = "Condition Group", ylab = "Belief Change", n.label = FALSE )
+```
+
+Data transformations from priorData dataframe to graphData to get summary data required to draw bar-plot.
+
+```{r}
+graphData <- priorData %>% select(condition, mean_True_belief_Diff, mean_False_belief_Diff) %>% gather(GroundTruth, BeliefChange, mean_True_belief_Diff:mean_False_belief_Diff, factor_key = TRUE)
+
+levels(graphData$GroundTruth)[levels(graphData$GroundTruth)=="mean_True_belief_Diff"] <- "True"
+levels(graphData$GroundTruth)[levels(graphData$GroundTruth)=="mean_False_belief_Diff"] <- "False"
+
+summarizedGraphData <-graphData %>% group_by(condition, GroundTruth) %>% summarise(n = n(),
+                         mean = mean(BeliefChange),
+                         sd = sd(BeliefChange),
+                         se = sd/sqrt(n),
+                         ci = se * qt((1-0.05)/2 + .5, n-1))
+
+summarizedGraphData
+```
+
+#### Mean belief change by condition group by ground truth
+
+```{r}
+ggplot(summarizedGraphData, aes(x=condition, y=mean, fill=GroundTruth)) + 
+    geom_bar(position=position_dodge(), stat="identity") +
+    geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.9)) + ylab("Mean Belief Change") + xlab("Condition Group")
+```
+
+```{r}
+tempData <- priorData %>% select(condition,mean_Falsebelief_A,mean_Truebelief_A,mean_Falsebelief_C, mean_Truebelief_C) %>% gather(v, val, mean_Falsebelief_A:mean_Truebelief_C)%>% separate(v, c("type", "GroundTruth","Block")) %>% select(-type)
+
+tempData$GroundTruth <- as.factor(tempData$GroundTruth)
+
+levels(tempData$GroundTruth)[levels(tempData$GroundTruth)=="Truebelief"] <- "True"
+levels(tempData$GroundTruth)[levels(tempData$GroundTruth)=="Falsebelief"] <- "False"
+
+#summarizedGraphData <- tempData %>% group_by(condition, GroundTruth, Block) %>% summarise(n = n(),mean = mean(val),sd = sd(val),se = sd/sqrt(n),ci = se * qt((1-0.05)/2 + .5, n-1))
+
+#summarizedGraphData
+
+ggplot(tempData, aes(x=Block, y=val, fill=GroundTruth)) + 
+    geom_boxplot() + facet_wrap(~condition)
+```
+
+### Initial Observations:
+
+-   Overall belief has gone down in feedback groups compared to control group.
+
+-   Belief in true items has reduced in feedback groups compared to control group. This effect seems to be strongest in the negative feedback group.
+
+-   Belief in false items has reduced in feedback groups compared to control group.
+
+-   Truth discernment seems to have reduced in both feedback groups compared to control group. This effects seems to be bigger for the negative feedback group.
+
+#### ANOVA Test to Compare Truth Discernment Improvement Between Conditions
+
+```{r}
+tDisc.anova <- aov( truthDiscImprovement ~ condition, priorData )
+print(tDisc.anova)
+summary(tDisc.anova)
+```
+
+*The ANOVA test result suggests that there is no difference in the changes in truth discernment between the groups*
+
+#### ANOVA Test to Compare Overall Belief Change Between Conditions
+
+```{r}
+oBC.anova <- aov( mean_all_belief_Diff ~ condition, priorData )
+print(oBC.anova)
+summary(oBC.anova)
+```
+
+*The ANOVA test results suggest that there is a significant change in overall belief between groups.*
+
+#### Pairwise T test with Holm Correction to compare overall belief change between groups
+
+```{r}
+posthocPairwiseT(oBC.anova)
+```
+
+*The results suggest that overall belief has gone down in both feedback groups compared to control. However, the type of feedback does not have an effect on overall belief.*
+
+#### ANOVA Test to Compare Belief Change in True Items Between Conditions
+
+```{r}
+tBC.anova <- aov( mean_True_belief_Diff ~ condition, priorData )
+print(tBC.anova)
+summary(tBC.anova)
+```
+
+```{r}
+posthocPairwiseT(tBC.anova)
+```
+
+#### ANOVA Test to Compare Belief Change in False Items Between Conditions
+
+```{r}
+fBC.anova <- aov( mean_False_belief_Diff ~ condition, priorData )
+print(fBC.anova)
+summary(fBC.anova)
+```
+
+*Therefore, we can conclude that truth discernment has not improved after receiving feedback compared to control group. However overall belief has gone down - primarily through the reduction of belief in true items. They type of feedback does not seem to have an effect.*
+
+```{r}
+tempData <- priorData %>% filter(condition == 'GRPN')
+ggplot(tempData, aes(x=crt_total, y=mean_True_belief_Diff)) + geom_point()
+cor.test(tempData$mean_True_belief_Diff, tempData$crt_total)
+```
+
+# Analyzing changes in sharing behaviour
+
+Hypothesis 1: Sharing likelihood of false items will reduce in C block compared to A block after receiving constructive feedback (GRPP) in B block compared to control group
+
+Hypothesis 2: Sharing likelihood of both true and false items will reduce in C block compared to A block after receiving critical feedback (GRPN) in B block compared to control group
+
+```{r}
+#Filter out the columns needed and create a dataframe.
+shareData <- final %>% select(uid, condition, ConditionType,mean_all_share_A, mean_Falseshare_A,mean_Trueshare_A,mean_Diffshare_A,mean_all_share_C,mean_Falseshare_C,mean_Trueshare_C,mean_Diffshare_C)
+
+#calculate the differences between C block and A block share ratings and retweet counts for each participant
+
+shareData$mean_all_share_Diff = shareData$mean_all_share_C - shareData$mean_all_share_A
+
+shareData$mean_Falseshare_Diff = shareData$mean_Falseshare_C - shareData$mean_Falseshare_A
+
+shareData$mean_Trueshare_Diff = shareData$mean_Trueshare_C - shareData$mean_Trueshare_A
+
+shareData$mean_shareDiscern_Diff = shareData$mean_Diffshare_C - shareData$mean_Diffshare_A
+
+```
+
+### Mean and SD of differences in share ratings and re-tweet counts
+
+```{r}
+shareData %>% select(condition, mean_all_share_Diff,mean_Falseshare_Diff,mean_Trueshare_Diff,mean_shareDiscern_Diff) %>% group_by(condition) %>% summarise(
+  allShareChange = mean(mean_all_share_Diff),
+  allShareChangeSD = sd(mean_all_share_Diff),
+  TrueShareChange = mean(mean_Trueshare_Diff),
+  TrueShareChangeSD = sd(mean_Trueshare_Diff),
+  FalseShareChange = mean(mean_Falseshare_Diff),
+  FalseShareChangeSD = sd(mean_Falseshare_Diff),
+  shareDiscern = mean(mean_shareDiscern_Diff),
+  shareDiscernSD = sd(mean_shareDiscern_Diff)
+)
+```
+
+#### Plotting means of overall sharing likelihood change
+
+```{r}
+plotmeans( formula = mean_all_share_Diff ~ condition, data = shareData,  xlab = "Condition Group", ylab = "Overall Sharing Likelihood Change", n.label = FALSE )
+```
+
+#### ANOVA test to compare the sharing likelihood change between the groups.
+
+```{r}
+oSL.anova <- aov( mean_all_share_Diff ~ condition, shareData )
+print(oSL.anova)
+summary(oSL.anova)
+```
+
+*The results indicate that overall sharing in the three condition groups has not changed.*
+
+### Comparing changes in sharing likelihood in true and false items between conditions
+
+Data transformation of sharing data for plotting.
+
+```{r}
+graphData <- shareData %>% select(condition, mean_Trueshare_Diff, mean_Falseshare_Diff) %>% gather(GroundTruth, ShareLikelihdChange, mean_Trueshare_Diff:mean_Falseshare_Diff, factor_key = TRUE)
+
+levels(graphData$GroundTruth)[levels(graphData$GroundTruth)=="mean_Trueshare_Diff"] <- "True"
+levels(graphData$GroundTruth)[levels(graphData$GroundTruth)=="mean_Falseshare_Diff"] <- "False"
+
+summarizedGraphData <-graphData %>% group_by(condition, GroundTruth) %>% summarise(n = n(),
+                         mean = mean(ShareLikelihdChange),
+                         sd = sd(ShareLikelihdChange),
+                         se = sd/sqrt(n),
+                         ci = se * qt((1-0.05)/2 + .5, n-1))
+
+summarizedGraphData
+```
+
+#### Mean sharing likelihood change by condition by ground truth.
+
+```{r}
+ggplot(summarizedGraphData, aes(x=condition, y=mean, fill=GroundTruth)) + 
+    geom_bar(position=position_dodge(), stat="identity") +
+    geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.9)) + ylab("Mean Sharing Likelihood Change") + xlab("Condition Group")
+```
+
+#### ANOVA test to compare sharing likelihood change of true items between conditions
+
+```{r}
+tSLC.anova <- aov( mean_Trueshare_Diff ~ condition, shareData )
+print(tSLC.anova)
+summary(tSLC.anova)
+```
+
+#### ANOVA test to compare sharing likelihood change of false items between conditions
+
+```{r}
+fSLC.anova <- aov( mean_Falseshare_Diff ~ condition, shareData )
+print(fSLC.anova)
+summary(fSLC.anova)
+```
+
+*Similar to overall sharing likelihood, the tests indicate that the change in sharing likelihood of true and false items are not significant.*
+
+### Analyzing change in sharing with other participants
+
+```{r}
+#Filter out the columns needed and create a dataframe.
+retwtData <- final %>% select(uid, condition, ConditionType,sum_all_retwt_A, sum_Falseretwt_A,sum_Trueretwt_A, sum_Diffretwt_A,sum_all_retwt_B,sum_Falseretwt_B,sum_Trueretwt_B,sum_Diffretwt_B,sum_all_retwt_C,sum_Falseretwt_C,sum_Trueretwt_C,sum_Diffretwt_C)
+
+
+#calculate the differences between C block and A block share ratings and retweet counts for each participant
+
+retwtData$sum_all_retwt_Diff = retwtData$sum_all_retwt_C - retwtData$sum_all_retwt_A
+
+retwtData$sum_Falseretwt_Diff = retwtData$sum_Falseretwt_C - retwtData$sum_Falseretwt_A
+
+retwtData$sum_Trueretwt_Diff = retwtData$sum_Trueretwt_C - retwtData$sum_Trueretwt_A
+
+retwtData$sum_retwtDiscern_Diff = retwtData$sum_Diffretwt_C - retwtData$sum_Diffretwt_A
+```
+
+```{r}
+retwtData %>% select(condition,sum_all_retwt_Diff,sum_Falseretwt_Diff,sum_Trueretwt_Diff,sum_retwtDiscern_Diff) %>% group_by(condition) %>% summarise(
+  allRtwtChange = mean(sum_all_retwt_Diff),
+  allRtwtChangeSD = sd(sum_all_retwt_Diff),
+  TrueRtwtChange = mean(sum_Trueretwt_Diff),
+  TrueRtwtChangeSD = sd(sum_Trueretwt_Diff),
+  FalseRtwtChange = mean(sum_Falseretwt_Diff),
+  FalseRtwtChangeSD = sd(sum_Falseretwt_Diff),
+  RtwtDiscern = mean(sum_retwtDiscern_Diff),
+  RtwtDiscernSD = sd(sum_retwtDiscern_Diff),
+)
+```
+
+#### Plotting means of overall sharing likelihood change
+
+```{r}
+plotmeans( formula = sum_all_retwt_Diff ~ condition, data = retwtData,  xlab = "Condition Group", ylab = "Overall Sharing with participants Change", n.label = FALSE )
+```
+
+#### ANOVA test to compare the sharing likelihood change between the groups.
+
+```{r}
+oRT.anova <- aov( sum_all_retwt_Diff ~ condition, retwtData )
+print(oRT.anova)
+summary(oRT.anova)
+```
+
+```{r}
+posthocPairwiseT(oRT.anova)
+```
+
+### Comparing changes in sharing between participants in true and false items between conditions
+
+Data transformation of sharing data for plotting.
+
+```{r}
+graphData <- retwtData %>% select(condition,sum_Trueretwt_Diff,sum_Falseretwt_Diff) %>% gather(GroundTruth, ShareChange, sum_Trueretwt_Diff:sum_Falseretwt_Diff, factor_key = TRUE)
+
+levels(graphData$GroundTruth)[levels(graphData$GroundTruth)=="sum_Trueretwt_Diff"] <- "True"
+levels(graphData$GroundTruth)[levels(graphData$GroundTruth)=="sum_Falseretwt_Diff"] <- "False"
+
+summarizedGraphData <-graphData %>% group_by(condition, GroundTruth) %>% summarise(n = n(),
+                         mean = mean(ShareChange),
+                         sd = sd(ShareChange),
+                         se = sd/sqrt(n),
+                         ci = se * qt((1-0.05)/2 + .5, n-1))
+
+summarizedGraphData
+```
+
+#### Mean sharing likelihood change by condition by ground truth.
+
+```{r}
+ggplot(summarizedGraphData, aes(x=condition, y=mean, fill=GroundTruth)) + 
+    geom_bar(position=position_dodge(), stat="identity") +
+    geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.9)) + ylab("Mean Sharing Change") + xlab("Condition Group")
+```
+
+#### ANOVA test to compare sharing change of true items between conditions
+
+```{r}
+tRTC.anova <- aov( sum_Trueretwt_Diff ~ condition, retwtData )
+print(tRTC.anova)
+summary(tRTC.anova)
+```
+
+```{r}
+posthocPairwiseT(tRTC.anova)
+```
+
+#### ANOVA test to compare sharing change of false items between conditions
+
+```{r}
+fRTC.anova <- aov( sum_Falseretwt_Diff ~ condition, retwtData )
+print(fRTC.anova)
+summary(fRTC.anova)
+```
+
+*The results suggest that although overall sharing has not gone down, sharing of true items in the critical feedback condition has gone down significantly compared to the control group.*
+
+```{r}
+allRetData <- trialData %>% select(uid, condition, groundTruth,retValue) %>% group_by(uid, condition, groundTruth) %>% summarise(n=n(), totShares = sum(retValue))
+
+allRetData$shareRate = allRetData$totShares/allRetData$n
+
+summarizedGraphData <- allRetData %>% group_by(condition, groundTruth) %>% summarise(n = n(),
+                                                        mean = mean(shareRate),
+                                                        sd = sd(shareRate),
+                                                        se = sd/sqrt(n),
+                                                        ci = se * qt((1-0.05)/2 + .5, n-1))
+summarizedGraphData
+```
+
+```{r}
+ggplot(summarizedGraphData, aes(x=condition, y=mean, fill=groundTruth)) + 
+    geom_bar(position=position_dodge(), stat="identity") +
+    geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.9)) + ylab("Mean Sharing Rate") + xlab("Condition Group")
+```

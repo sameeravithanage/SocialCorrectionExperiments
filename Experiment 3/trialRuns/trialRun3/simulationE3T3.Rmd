@@ -1,0 +1,149 @@
+---
+title: "Trial Run 2 - Reliability of Social Correction"
+author: 'Sameera Vithanage'
+output:
+  bookdown::pdf_document2:
+    toc: true
+    toc_depth: 3
+    number_section: false
+  bookdown::html_document2: default
+---
+
+## Detailed Statistical Analysis
+
+```{r results='hide', echo=FALSE}
+#Start with a clean workspace
+rm(list=ls())
+```
+
+```{r results='hide', echo=FALSE}
+setwd("~/Projects/Phd/Data/3Exp/trialRun3")
+```
+
+```{r results='hide', echo=FALSE}
+#The following defines a convenience function for loading libraries, installing if necessary.
+loadLibrary = function(packageName, suppressMessages = TRUE, githubRepo = NULL)
+ {
+  if (! require(packageName, character.only = TRUE)) {
+    if (! is.null(githubRepo)) {
+      loadLibrary("devtools")
+      devtools::install_github(githubRepo)    
+    }
+    else 
+      install.packages(packageName)
+  
+    if (suppressMessages)
+      suppressPackageStartupMessages(library(packageName, character.only = TRUE))
+    else 
+      library(packageName, character.only = TRUE)
+  }
+}  
+```
+
+```{r results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+#Load some useful libraries.
+
+loadLibrary('psych')
+loadLibrary("gplots")
+loadLibrary("jsonlite")
+loadLibrary("ggridges")
+loadLibrary("ggthemes")
+loadLibrary("car")
+loadLibrary("tidyverse")
+loadLibrary('lsr')
+loadLibrary('effsize')
+```
+
+```{r results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+options(dplyr.summarise.inform = FALSE)
+```
+
+## Generate simulated data
+
+```{zsh, engine.opts='-l'}
+python3 simData.py 3exp3tr_raw.csv 50
+```
+
+## Hypothesis
+
+H1. Participants will give less corrective comments compared to reinforcing comments.
+
+H2. Participants will be more discerning when giving corrective comments compared to reinforcing ones.
+
+H3. Participants will be more confident in their credibility assessment
+
+1.  a\. when giving comments compared to skipping.
+
+2.  b\. when giving corrective comments compared to reinforcing.
+
+## Analysis using simulated data
+
+```{r}
+simData <- read.csv('simData.csv')
+```
+
+```{r}
+simData <- simData %>% filter(! mainHeadline %in% c('h41','h42','h43','h44'))
+dim(simData)
+```
+
+#### H1 - Out of the corrective comments only a small proportion is given online compared to reinforcing comments.
+
+```{r}
+simData$onlineResponse <- factor(simData$onlineResponse, levels = c('yes','no'))
+table(simData$percCredibility, simData$onlineResponse)
+```
+
+```{r}
+prop.test(table(simData$percCredibility, simData$onlineResponse))
+```
+
+```{r}
+power.prop.test(p1 = 0.1, p2 = 0.125, sig.level = 0.05, power = 0.8)
+```
+
+#### H2 - Participants will be more discerning when giving corrective comments compared to reinforcing ones.
+
+```{r}
+table(simData$groundTruth, simData$percCredibility)
+```
+
+```{r}
+simData <- simData %>% mutate(classification = ifelse( groundTruth == 'False' & percCredibility == 'p.False', 'hit', ifelse(groundTruth == 'False' & percCredibility != 'p.False', 'miss',ifelse(groundTruth == 'True' & percCredibility == 'p.True', 'hit','miss'))))
+temp <- simData %>% filter(onlineResponse == 'yes')
+
+table(simData$percCredibility, simData$classification)
+```
+
+```{r}
+table(temp$groundTruth, temp$percCredibility)
+```
+
+```{r}
+table(temp$percCredibility, temp$classification)
+```
+
+```{r}
+prop.test(table(temp$percCredibility, temp$classification))
+```
+
+#### H3
+
+```{r}
+simData %>% select(percCredibility,onlineResponse, confidence) %>% group_by(percCredibility, onlineResponse) %>% summarise(mConf = mean(confidence), count = n())
+```
+
+```{r}
+leveneTest(confidence ~ interaction(percCredibility, onlineResponse), data = simData)
+```
+
+```{r}
+rep.Aov <- aov(confidence ~ percCredibility * onlineResponse, data = simData)
+summary(rep.Aov)
+
+TukeyHSD(rep.Aov)
+```
+
+```{r}
+etaSquared(rep.Aov)
+```

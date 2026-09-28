@@ -1,0 +1,322 @@
+---
+title: "Diagnosticity of Social Corrections and Their Impact on Truth Discernment"
+author: 'Sameera Vithanage'
+output:
+  bookdown::pdf_document2:
+    toc: true
+    toc_depth: 3
+    number_section: false
+  bookdown::html_document2: default
+---
+
+## Detailed Statistical Analysis
+
+```{r results='hide', echo=FALSE}
+# Start with a clean workspace
+rm(list = ls())
+```
+
+```{r results='hide', echo=FALSE}
+setwd("~/Projects/Phd/ExperimentData/2Exp/exp2Analysis")
+```
+
+```{r results='hide', echo=FALSE}
+# The following defines a convenience function for loading libraries, installing if necessary.
+loadLibrary <- function(packageName, suppressMessages = TRUE, githubRepo = NULL) {
+  if (!require(packageName, character.only = TRUE)) {
+    if (!is.null(githubRepo)) {
+      loadLibrary("devtools")
+      devtools::install_github(githubRepo)
+    } else {
+      install.packages(packageName)
+    }
+
+    if (suppressMessages) {
+      suppressPackageStartupMessages(library(packageName, character.only = TRUE))
+    } else {
+      library(packageName, character.only = TRUE)
+    }
+  }
+}
+```
+
+```{r results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+# Load some useful libraries.
+
+loadLibrary("psych")
+loadLibrary("jsonlite")
+loadLibrary("tidyverse")
+loadLibrary("effsize")
+loadLibrary("lsr")
+```
+
+```{r results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+options(dplyr.summarise.inform = FALSE)
+```
+
+```{r results='hide', echo=FALSE, warning=FALSE}
+# Loading the necessary data
+
+trueHeadlines <- c("h22", "h1", "h4", "h20", "h15", "h11", "h3", "h23", "h16", "h24")
+falseHeadlines <- c("h6", "h33", "h30", "h40", "h29", "h31", "h7", "h10", "h32", "h27")
+headlineMetaData <- jsonlite::fromJSON("../data/sam23_headlines.json") %>%
+  select(id, oldID, headline) %>%
+  filter(id %in% c(trueHeadlines, falseHeadlines))
+
+source("FactCheckDataV1.R")
+fd <- getFactCheckTestDataV1()
+
+source("FactCheckDataPhase2.R")
+fdp2 <- getFactCheckTestDataPhase2()
+phase2Data <- fdp2$trials %>% filter(mainHeadline %in% c(trueHeadlines, falseHeadlines))
+
+source("FactCheckDataPhase1.R")
+fdp1 <- getFactCheckPhase1()
+phase1Data <- fdp1$trials %>% filter(mainHeadline %in% headlineMetaData[["oldID"]])
+```
+
+```{r, results='hide', echo=FALSE}
+fd$trials
+```
+
+```{r results='hide', echo=FALSE, warning=FALSE}
+# trialData <- read.csv('data.csv')
+allTrialData <- fd$trials
+```
+
+```{r results='hide', echo=FALSE, warning=FALSE}
+numCols <- c("credibilitySection", "sharingSection", "trialEndTime", "trialStartTime", "commentSectionChoice", "commentSectionText", "onlineResponseSection")
+
+allTrialData[numCols] <- sapply(allTrialData[numCols], as.numeric)
+# sapply(DF, class)
+
+# factorCols <-c('trialType','mainHeadline','commentChoice','onlineResponse')
+```
+
+```{r results='hide', echo=FALSE, warning=FALSE}
+fd$completed %>%
+  select(condition, experimentEndTime) %>%
+  group_by(condition) %>%
+  summarise(totalDuration.Mins = mean(as.integer(experimentEndTime) / 60000, trim = .25))
+```
+
+```{r results='hide', echo=FALSE, warning=FALSE}
+trialData <- allTrialData %>% filter(mainHeadline %in% c(trueHeadlines, falseHeadlines))
+trialData$index <- as.numeric(trialData$index)
+trialData <- trialData %>% mutate(percTruth = if_else(prior < 50, "fake", "real"), shared = if_else(share < 50, "notShared", "Shared"))
+```
+
+```{r results='hide', echo=FALSE, warning=FALSE}
+trialData %>%
+  select(uid, condition) %>%
+  group_by(condition) %>%
+  summarize(n = n_distinct(uid))
+```
+
+```{r results='hide', echo=FALSE, warning=FALSE}
+# uid - id for each participant, colName - share/prior column, factCol - groundTruthCol
+
+ratingCalc <- function(data, colName, blockName, fun, test) {
+  # get the data columns relevant to the calculation
+  data <- data %>% select(!!sym(colName), uid, groundTruth, condition)
+
+  # calculate mean prior rating without ground Truth.
+  all_data <- data %>%
+    select(!!sym(colName), uid, condition) %>%
+    group_by(uid, condition) %>%
+    summarise(all = fun(!!sym(colName)))
+
+  # calculate mean priors by uid and groud truth.
+  temp <- data %>%
+    group_by(uid, groundTruth, condition) %>%
+    summarise(Param = fun(!!sym(colName)))
+
+  # convert the table form long to wide from and join it with all means
+  temp <- spread(temp, groundTruth, Param)
+  d <- all_data %>% inner_join(temp, by = c("uid", "condition"))
+
+  # calculate truth discernment and add a new column
+  d$Diff <- d$`TRUE` - d$`FALSE`
+
+  d <- d %>% rename(True = `TRUE`, False = `FALSE`)
+
+  colnames(d)[3:5] <- paste0(colnames(d[, c(3:5)]), blockName)
+  colnames(d)[3:5] <- paste0(test, colnames(d[, c(3:5)]))
+
+  return(d)
+}
+```
+
+```{r results='hide', echo=FALSE, warning=FALSE}
+priorData <- ratingCalc(trialData, "prior", "_belief", mean, "mean_") %>% rename(TruthDisc = Diff)
+shareData <- ratingCalc(trialData, "share", "_share", mean, "mean_") %>% rename(shareDisc = Diff)
+```
+
+### Truth Discernment between groups. {#td}
+
+Mean truth discernment between participants in each group. The error bars represent 95% ci.
+
+```{r echo=FALSE, warning=FALSE, fig.cap='Mean truth discernment across conditions with 95% CI'}
+plotmeans(ylab = "Truth Discernment", xlab = "Condition", legends = c("Control", "Comment"), formula = TruthDisc ~ condition, data = priorData)
+```
+
+```{r prior-plot, echo=FALSE, warning=FALSE, fig.width=10, fig.show='hide' ,dev='png', fig.cap='Density plot of credibility ratings given in each condition'}
+dummy <- trialData %>%
+  group_by(condition, groundTruth) %>%
+  summarize(mean = mean(prior))
+
+conditionNames <- as_labeller(c(`CTRL` = "Control", `EXP` = "Comment"))
+```
+
+#### Signal Detection Approach on Truth Discernment.
+
+Credibility ratings were analysed using signal detection theory to understand participants' accuracy and tendency to be more liberal or conservative when perceiving claims. dPrime is used to indicate accuracy - higher dPrime means better accuracy and c is used to signify criterion - lower c means more liberal while higher c means conservative when perceiving claims to be true.
+
+```{r echo=FALSE}
+priorCalc <- function(data, blockName) {
+  # get the data columns relevant to the calculation
+  temp <- data %>%
+    select(uid, condition, groundTruth, percTruth) %>%
+    group_by(uid, condition, groundTruth, percTruth) %>%
+    summarize(n = n())
+
+  temp <- temp %>% reshape2::dcast(uid + condition ~ groundTruth + percTruth)
+  temp[is.na(temp)] <- 0
+
+  d <- temp %>%
+    mutate(
+      TRUE_real = TRUE_real + .5,
+      FALSE_fake = FALSE_fake + .5,
+      FALSE_real = FALSE_real + .5,
+      TRUE_fake = TRUE_fake + .5
+    ) %>%
+    mutate(
+      hit_rate = (TRUE_real) / (TRUE_fake + TRUE_real),
+      fa_rate = (FALSE_real) / (FALSE_real + FALSE_fake),
+      dprime = qnorm(hit_rate) - qnorm(fa_rate),
+      c = -1 * (qnorm(hit_rate) + qnorm(fa_rate)) / 2
+    )
+  colnames(d)[3:10] <- paste0(colnames(d)[3:10], blockName)
+  return(d)
+}
+```
+
+##### Comparing control and comment condition
+
+```{r echo=FALSE,message=FALSE,warning=FALSE}
+sdDataAll <- priorCalc(trialData, "_prior")
+```
+
+```{r echo=FALSE}
+expData <- trialData %>% filter(condition == "EXP")
+ctrlData <- trialData %>% filter(condition == "CTRL")
+```
+
+**Comment condition contingency table (confusion matrix) ground truth vs perceived truth**
+
+```{r echo=FALSE}
+t1 <- addmargins(table(expData$groundTruth, expData$percTruth))
+colnames(t1) <- c("Perceived:fake", "Perceived:real", "Sum")
+rownames(t1) <- c("GroundTruth:FALSE", "GroundTruth:TRUE", "Sum")
+t1
+t2 <- addmargins(prop.table(table(expData$groundTruth, expData$percTruth), 1), 2)
+colnames(t2) <- c("Perceived:fake", "Perceived:real", "Sum")
+rownames(t2) <- c("GroundTruth:FALSE", "GroundTruth:TRUE")
+t2
+```
+
+**Control condition contingency table (confusion matrix) ground truth vs perceived truth**
+
+```{r echo=FALSE}
+t1 <- addmargins(table(ctrlData$groundTruth, ctrlData$percTruth))
+colnames(t1) <- c("Perceived:fake", "Perceived:real", "Sum")
+rownames(t1) <- c("GroundTruth:FALSE", "GroundTruth:TRUE", "Sum")
+t1
+t2 <- addmargins(prop.table(table(ctrlData$groundTruth, ctrlData$percTruth), 1), 2)
+colnames(t2) <- c("Perceived:fake", "Perceived:real", "Sum")
+rownames(t2) <- c("GroundTruth:FALSE", "GroundTruth:TRUE")
+t2
+```
+
+*From the contingency table data, it appears that people are more accurate when identifying true news in the comment condition than the control condition.*
+
+```{r echo=FALSE}
+t.test(dprime_prior ~ condition, data = sdDataAll)
+cohensD(dprime_prior ~ condition, data = sdDataAll)
+t.test(c_prior ~ condition, data = sdDataAll)
+cohensD(c_prior ~ condition, data = sdDataAll)
+```
+
+*A t-test on dPrime shows that participants are more accurate in the commenting condition than the control condition because dprime is higher. Also, the criterion t-test shows that participants are more liberal in perceiving claims as true in the comment condition compared to the control condition.*
+
+*These results suggest that the participants in the comment condition gave higher credibility ratings to ground truth true claims which resulted in the credibility rating distribution of true claims to shift further right.*
+
+### Share Discernment Between Conditions {#sharedisc}
+
+Since truth discernment improved in the comment condition, though not originally hypothesized, I expected sharing discernment to improve as well. That is participants in the comment condition would share more true claims over false claims compared to the control condition due to improved accuracy.
+
+```{r echo=FALSE}
+plotmeans(formula = shareDisc ~ condition, data = shareData)
+```
+
+```{r echo=FALSE}
+t.test(shareDisc ~ condition, data = shareData)
+cohen.d(shareDisc ~ condition, data = shareData)
+```
+
+*T test result indicates that there is no difference in sharing discernment in control and comment conditions*
+
+Since sharing discernment did not change, I looked at overall sharing between conditions next. That is if participants are willing to share both true and false claims in comment condition compared to control.
+
+```{r echo=FALSE}
+plotmeans(formula = mean_all_share ~ condition, data = shareData)
+```
+
+```{r echo=FALSE}
+t.test(mean_all_share ~ condition, data = shareData)
+```
+
+*Similar to truth discernment there is no significant difference between sharing between the conditions.*
+
+```{r}
+shareCalc <- function(data, blockName) {
+  # get the data columns relevant to the calculation
+  temp <- data %>%
+    select(uid, condition, groundTruth, shared) %>%
+    group_by(uid, condition, groundTruth, shared) %>%
+    summarize(n = n())
+
+  temp <- temp %>% reshape2::dcast(uid + condition ~ groundTruth + shared)
+  temp[is.na(temp)] <- 0
+
+  d <- temp %>%
+    mutate(
+      TRUE_Shared = TRUE_Shared + .5,
+      FALSE_notShared = FALSE_notShared + .5,
+      FALSE_Shared = FALSE_Shared + .5,
+      TRUE_notShared = TRUE_notShared + .5
+    ) %>%
+    mutate(
+      hit_rate = (TRUE_Shared) / (TRUE_notShared + TRUE_Shared),
+      fa_rate = (FALSE_Shared) / (FALSE_Shared + FALSE_notShared),
+      dprime = qnorm(hit_rate) - qnorm(fa_rate),
+      c = -1 * (qnorm(hit_rate) + qnorm(fa_rate)) / 2
+    )
+  colnames(d)[3:10] <- paste0(colnames(d)[3:10], blockName)
+  return(d)
+}
+```
+
+```{r}
+sdDataAll <- shareCalc(trialData, "_share")
+```
+
+```{r}
+t.test(dprime_share ~ condition, data = sdDataAll)
+t.test(c_share ~ condition, data = sdDataAll)
+```
+
+```{r}
+cohensD(dprime_share ~ condition, data = sdDataAll)
+cohensD(c_share ~ condition, data = sdDataAll)
+```

@@ -1,0 +1,573 @@
+[
+    {
+        "id": "h1",
+        "link": "https://www.snopes.com/fact-check/facebook-bible-verse-sensitive-content/",
+        "headline": "Facebook censored an image containing the bible verse: \"Be still, and know that I am God\" by showing a \"sensitive content\" label over the image. ",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h132.jpg",
+        "oldID": "h132"
+    },
+    {
+        "id": "h2",
+        "link": "https://www.politifact.com/factchecks/2021/mar/09/facebook-posts/georgia-bill-would-ban-giving-food-water-voters-li/",
+        "headline": "The Georgia House passed a bill that makes it a misdemeanor to give food or water to voters waiting in line.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h126.jpg",
+        "oldID": "h126"
+    },
+    {
+        "id": "h3",
+        "link": "https://www.snopes.com/fact-check/fox-news-pulitzer-emmy-peabody/",
+        "headline": "Fox News has never won a Pulitzer, Emmy, Peabody, or Edward R. Murrow Award for journalisxm on the merits of its work.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h141.jpeg",
+        "oldID": "h141"
+    },
+    {
+        "id": "h4",
+        "link": "https://www.snopes.com/fact-check/biden-vote-overturn-roe/",
+        "headline": "In 1982, then-U.S. Sen. Joe Biden voted in favor of effectively overturning Roe v Wade.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h146.jpg",
+        "oldID": "h146"
+    },
+    {
+        "id": "h5",
+        "link": "https://www.politifact.com/factchecks/2021/feb/18/facebook-posts/yes-aversion-federal-regulation-drove-texas-isolat/",
+        "headline": "The Texas power grid is not part of the US power grid because they wanted to avoid federal regulation.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h127.jpg",
+        "oldID": "h127"
+    },
+    {
+        "id": "h6",
+        "link": "https://www.snopes.com/fact-check/dave-busters-chappelle-busta-rhymes/",
+        "headline": "Bar and restaurant chain Dave & Busters was founded by comedian Dave Chappelle and rapper Busta Rhymes.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h115.jpeg",
+        "oldID": "h115"
+    },
+    {
+        "id": "h7",
+        "link": "https://www.snopes.com/fact-check/shinzo-abe-tweet-hillary-clinton/",
+        "headline": "Before his death, former Japanese PM Shinzo Abe tweeted he had evidence that would lead to the arrest of Hillary Clinton.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h19.jpg",
+        "oldID": "h19"
+    },
+    {
+        "id": "h8",
+        "link": "https://www.snopes.com/fact-check/mothers-day-crime/",
+        "headline": "In the U.S., Mother's Day sees less crime than any other day of the year.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h34.png",
+        "oldID": "h34"
+    },
+    {
+        "id": "h9",
+        "link": "https://www.snopes.com/fact-check/military-dogs-left-in-afghanistan/",
+        "headline": "The United States abandoned dozens of military working dogs in Kabul, Afghanistan, when the U.S. withdrew troops.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h111.jpg",
+        "oldID": "h111"
+    },
+    {
+        "id": "h10",
+        "link": "https://www.snopes.com/fact-check/bill-gates-own-farmland/",
+        "headline": "Bill Gates owns a majority of America's farmland.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h36.jpg",
+        "oldID": "h36"
+    },
+    {
+        "id": "h11",
+        "link": "https://www.snopes.com/fact-check/musk-let-donald-trump-back-on-twitter/",
+        "headline": "Former U.S. President Donald Trump has been reinstated on Twitter by Elon Musk.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h134.jpg",
+        "oldID": "h134"
+    },
+    {
+        "id": "h12",
+        "link": "https://www.snopes.com/fact-check/thanksgiving-cooking-fires/",
+        "headline": "Thanksgiving is the peak day for cooking fires being reported in the U.S.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h135.jpg",
+        "oldID": "h135"
+    },
+    {
+        "id": "h13",
+        "link": "https://www.bbc.com/news/world-asia-china-63796135?xtor=AL-72-%5Bpartner%5D-%5Bbbc.news.twitter%5D-%5Bheadline%5D-%5Bnews%5D-%5Bbizdev%5D-%5Bisapi%5D&at_campaign_type=owned&at_ptr_name=twitter&at_link_id=0B60DA60-7009-11ED-8BE2-FE894744363C&at_format=link&at_link_origin=BBCWorld&at_link_type=web_link&at_campaign=Social_Flow&at_bbc_team=editorial&at_medium=social",
+        "headline": "China plans 'crackdown' after Covid protests",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h139.jpg",
+        "oldID": "h139"
+    },
+    {
+        "id": "h14",
+        "link": "https://www.politifact.com/factchecks/2020/jan/24/facebook-posts/yes-iran-does-ban-twitter/",
+        "headline": "Twitter is banned in Iran.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h130.jpg",
+        "oldID": "h130"
+    },
+    {
+        "id": "h15",
+        "link": "https://www.snopes.com/fact-check/elon-musk-ron-desantis/",
+        "headline": "Elon Musk tweeted that he was leaning toward supporting Ron DeSantis over former Donald Trump in a future U.S. presidential election.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h133.jpg",
+        "oldID": "h133"
+    },
+    {
+        "id": "h16",
+        "link": "https://www.snopes.com/fact-check/st-louis-school-shooting-security/",
+        "headline": "A deadly shooting in St. Louis on Oct. 24, 2022, took place at a high school that had metal detectors, locked doors, and seven security officers working in the building.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h137.jpg",
+        "oldID": "h137"
+    },
+    {
+        "id": "h17",
+        "link": "https://www.snopes.com/fact-check/marjorie-taylor-greene-ppp-loan/",
+        "headline": "Marjorie Taylor Greene received $183,504 in PPP loan forgiveness.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h140.jpg",
+        "oldID": "h140"
+    },
+    {
+        "id": "h18",
+        "link": "https://www.snopes.com/fact-check/thousands-cow-deaths-kansas-heat/",
+        "headline": "Thousands of cows died in Kansas from excessive heat in June 2022.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h147.jpg",
+        "oldID": "h147"
+    },
+    {
+        "id": "h19",
+        "link": "https://www.snopes.com/fact-check/jim-jordan-abortion-tweet/",
+        "headline": "Republican Rep. Jim Jordan dismissed the claim that a 10-year-old girl was raped in his home state of Ohio and had to cross state lines to receive an abortion as \"another lie\" on Twitter.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h144.jpg",
+        "oldID": "h144"
+    },
+    {
+        "id": "h20",
+        "link": "https://www.snopes.com/fact-check/saudi-prince-skyscraper-megacity/",
+        "headline": "Saudi Arabia announced plans to construct a 100-mile-long skyscraper megacity called \"The Line\".",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h143.jpeg",
+        "oldID": "h143"
+    },
+    {
+        "id": "h21",
+        "link": "https://www.bbc.com/news/world-us-canada-63802649?at_link_id=06C620EC-7035-11ED-BD09-027796E8478F&at_link_type=web_link&at_campaign_type=owned&at_link_origin=BBCBreaking&at_bbc_team=editorial&at_format=link&at_campaign=Social_Flow&at_ptr_name=twitter&at_medium=social",
+        "headline": "Two members of far-right militia \"Oath Keepers\" found guilty of violent plot to stop US President Joe Biden from taking office after 2020 election",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h150.jpg",
+        "oldID": "h150"
+    },
+    {
+        "id": "h22",
+        "link": "https://www.snopes.com/fact-check/boris-johnson-tussauds-wax/",
+        "headline": "Madame Tussauds in Blackpool, England, placed its wax figure of Boris Johnson outside a local unemployment office to mark the announcement of his resignation.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h145.jpg",
+        "oldID": "h145"
+    },
+    {
+        "id": "h23",
+        "link": "https://www.snopes.com/fact-check/officers-rescued-own-children-texas/",
+        "headline": "Some 91 minutes before stopping the shooter, law enforcement officers went inside Robb Elementary School and rescued their own children.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h148.jpg",
+        "oldID": "h148"
+    },
+    {
+        "id": "h24",
+        "link": "https://www.snopes.com/fact-check/hot-youth-pastors-sticker/",
+        "headline": "A South Carolina youth pastor created an \"I Heart Hot Youth Pastors\" sticker and passed them out to teenagers.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h138.jpg",
+        "oldID": "h138"
+    },
+    {
+        "id": "h25",
+        "link": "https://www.snopes.com/fact-check/adidas-founded-former-nazi/",
+        "headline": "Shoes and sportswear company Adidas was founded by a former Nazi.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h136.jpeg",
+        "oldID": "h136"
+    },
+    {
+        "id": "h26",
+        "link": "https://www.politifact.com/factchecks/2022/nov/04/instagram-posts/instagram-post-wrongly-says-most-eligible-voters-d/",
+        "headline": "Two thirds of eligible voters don’t vote.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h64.jpg",
+        "GRPP": [
+            "In 2020 more than two - thirds voted and in the 2018 midterms, more than 50 % voted. So this is actually false.",
+            "I'm afraid this is incorrect. In the 2020 presidential election, two-thirds of eligible voters cast a ballot, which is the opposite of this."
+        ],
+        "GRPN": [
+            "In 2020 more than two - thirds voted and in the 2018 midterms, more than 50 % voted. You must be clueless to believe this.",
+            "Stop spreading fake news. In the 2020 presidential election, two - thirds of eligible voters cast a ballot, which is the opposite of this."
+        ],
+        "oldID": "h64"
+    },
+    {
+        "id": "h27",
+        "link": "https://www.snopes.com/fact-check/corporations-greenhouse-gas/",
+        "headline": "Only 100 corporations are responsible for 71% of global greenhouse gas emissions.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h110.jpg",
+        "GRPP": [
+            "This claim is wrong.This is not global emissions, but rather emissions from industrial sources.",
+            "This is misquoting a study which only looked at fossil fuel producers. Industries like farming and transportation were not included in this."
+        ],
+        "GRPN": [
+            "This claim is wrong.This is not global emissions, but rather emissions from industrial sources. Get your facts right.",
+            "This is misquoting a study which only looked at fossil fuel producers. Industries like farming and transportation were not included in this. You need to check your sources without blindly sharing."
+        ],
+        "oldID": "h110"
+    },
+    {
+        "id": "h28",
+        "link": "https://www.snopes.com/fact-check/ohio-abortion-law-no-rape-exception/",
+        "headline": "As of July 2022, Ohio’s law banning abortions for people who have been pregnant for six weeks or longer has an exception for victims of rape.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h17.jpeg",
+        "GRPP": [
+            "Actually, Ohio's law banning abortions for people who have been pregnant for six weeks or longer does not have an exception for victims of rape.",
+            "Ohio's AG's comments on Fox News were misinterpreted to suggest that the state's law had a rape exception, but this was not the case. The law only has exceptions for preventing death or serious physical harm to the pregnant person."
+        ],
+        "GRPN": [
+            "Actually, Ohio's law banning abortions for people who have been pregnant for six weeks or longer does not have an exception for victims of rape. Don't be naive.",
+            "Ohio's AG's comments on Fox News were misinterpreted to suggest that the state's law had a rape exception, but this was not the case. The law only has exceptions for preventing death or serious physical harm to the pregnant person. Don't spread misinfo"
+        ],
+        "oldID": "h17"
+    },
+    {
+        "id": "h29",
+        "link": "https://www.snopes.com/fact-check/us-taliban-arsenal-military-equipment/",
+        "headline": "The United States withdrawal from Afghanistan put more than $80 billion worth of equipment — including 22,174 Humvees and 33 Black Hawk helicopters — in the hands of the Taliban.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h112.jpg",
+        "GRPP": [
+            "This claim is incorrect. The $80 billion figure refers to the amount the US spent to train and equip Afghan security forces over the past two decades, not the value of the equipment the Taliban seized. Only around $18 billion was spent on equipment and transportation, and the majority was spent on salaries and training.",
+            "The Taliban didn't get $80 billion worth of military equipment. The US military destroyed or disabled equipment that couldn't be moved out of the country, and it's estimated that the Taliban obtained less than $10 billion worth of equipment."
+        ],
+        "GRPN": [
+            "This claim is incorrect. The $80 billion figure refers to the amount the US spent to train and equip Afghan security forces over the past two decades, not the value of the equipment the Taliban seized. Only around $18 billion was spent on equipment and transportation, and the majority was spent on salaries and training. Get your facts straight.",
+            "The Taliban didn't get $80 billion worth of military equipment.The US military destroyed or disabled equipment that couldn't be moved out of the country, and it's estimated that the Taliban obtained less than $10 billion worth of equipment.Can't believe people still think this happened."
+        ],
+        "oldID": "h112"
+    },
+    {
+        "id": "h30",
+        "link": "https://www.snopes.com/fact-check/greene-hitler-christianity-quote/",
+        "headline": "Echoing Adolf Hitler's exact words from 1928, U.S. Rep. Marjorie Taylor said, \"We tolerate no one in our ranks who attacks the ideas of Christianity. Our movement is Christian.\"",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h13.jpg",
+        "GRPP": [
+            "Actually, there's no evidence that Rep. Marjorie Taylor Greene ever repeated Hitler's statement about Christianity. This is made up.",
+            "There is no evidence to support this claim. It's incorrect."
+        ],
+        "GRPN": [
+            "Actually, there's no evidence that Rep.Marjorie Taylor Greene ever repeated Hitler's statement about Christianity. This is made up. Don't be stupid",
+            "There is no evidence to support this claim. It's incorrect. Stop sharing misinformation!"
+        ],
+        "oldID": "h13"
+    },
+    {
+        "id": "h31",
+        "link": "https://www.snopes.com/fact-check/ledger-improvise-hospital-scene/",
+        "headline": "Heath Ledger was so good, he improvised in the hospital scene in \"The Dark Knight\" after something went wrong with the explosions.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h113.jpg",
+        "GRPP": [
+            "Director Christopher Nolan has said that the scene was rehearsed multiple times and not something that wasn't planned beforehand.",
+            "This is not correct. The scene was rehearsed endlessly according to Christopher Nolan."
+        ],
+        "GRPN": [
+            "Director Christopher Nolan has said that the scene was rehearsed multiple times and not something that wasn't planned beforehand. Stop believing everything you see online.",
+            "This is not correct. The scene was rehearsed endlessly according to Christopher Nolan. It's foolish to still think this is true."
+        ],
+        "oldID": "h113"
+    },
+    {
+        "id": "h32",
+        "link": "https://www.snopes.com/fact-check/ben-shapiro-get-ppp-loan-forgiveness/",
+        "headline": "Conservative commentator Ben Shapiro received $20,832 in PPP loan forgiveness.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h11.jpg",
+        "GRPP": [
+            "Actually, the Ben Shapiro who received $20, 832 in PPP loan forgiveness is a Los Angeles real estate agent not the one this claim is referring to. This has been debunked by multiple fact - checking sources",
+            "This isn't the same person. A different person with the same name got loan forgiveness."
+        ],
+        "GRPN": [
+            "Actually, the Ben Shapiro who received $20,832 in PPP loan forgiveness is a Los Angeles real estate agent not the one this claim is referring to. This has been debunked by multiple fact-checking sources. You are so gullible.",
+            "Don't share stuff mindlessly.This isn't the same person. A different person with the same name got loan forgiveness."
+        ],
+        "oldID": "h11"
+    },
+    {
+        "id": "h33",
+        "link": "https://www.snopes.com/fact-check/gold-piano-queen/",
+        "headline": "The gold-colored piano located in the White Drawing Room in Buckingham Palace was stolen from Iraq.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h10.jpg",
+        "GRPP": [
+            "The gold piano located in the White Drawing Room in Buckingham Palace was not stolen from Iraq. It was ordered by Queen Victoria in 1856, long before the Persian Gulf War, according to the Royal Collection Trust.",
+            "Just to clarify, the rumor that the gold piano was taken from Saddam Hussein's palace during the Gulf War is false. The history of the piano dates back to the 19th century - Iraq war started in 2003."
+
+        ],
+        "GRPN": [
+            "The gold piano located in the White Drawing Room in Buckingham Palace was not stolen from Iraq. It was ordered by Queen Victoria in 1856, long before the Persian Gulf War, according to the Royal Collection Trust.Quit sharing misinformation on the internet.",
+            "Just to clarify, the rumor that the gold piano was taken from Saddam Hussein's palace during the Gulf War is false. The history of the piano dates back to the 19th century - Iraq war started in 2003. Why are you spreading lies?"
+        ],
+        "oldID": "h10"
+    },
+    {
+        "id": "h34",
+        "link": "https://www.snopes.com/fact-check/cdc-lethal-exposure-vinyl-chloride-profile/",
+        "headline": "The U.S. Centers for Disease Control and Prevention increased what it considers the \"lethal exposure\" threshold of vinyl chloride, a toxic chemical released due to the February 2023 Ohio train derailment, mere days or weeks before the incident.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h20.jpg",
+        "GRPP": [
+            "The CDC routinely updates toxicological profiles based on published findings and this is talking about a draft released for public comment. It was not the final draft and no changes to the lethal exposure levels were made.",
+            "This is actually wrong. The publicly released draft did not have anything related to changes in the lethal exposure levels."
+        ],
+        "GRPN": [
+            "The CDC routinely updates toxicological profiles based on published findings and this is talking about a draft released for public comment. It was not the final draft and no changes to the lethal exposure levels were made.Stop spreading fake news.",
+            "This is actually wrong. The publicly released draft did not have anything related to changes in the lethal exposure levels. Irresponsible of you to share false stories."
+        ],
+        "oldID": "h20"
+    },
+    {
+        "id": "h35",
+        "link": "https://www.politifact.com/factchecks/2022/sep/09/facebook-posts/facebook-post-falsely-claims-feds-are-subsidizing-/",
+        "headline": "The federal government is providing free solar panel installation and $8,500 incentive checks to eligible homeowners.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h75.JPG",
+        "GRPP": [
+            "There is no federal program that provides free solar panels and $8, 500 incentive checks to homeowners.",
+            "This is false. While tax credits are available for solar installation, there is no cash payment involved."
+        ],
+        "GRPN": [
+            "There is no federal program that provides free solar panels and $8, 500 incentive checks to homeowners. What you shared is a lie.",
+            "This is false. While tax credits are available for solar installation, there is no cash payment involved.Quit misleading people."
+        ],
+        "oldID": "h75"
+    },
+    {
+        "id": "h36",
+        "link": "https://www.politifact.com/factchecks/2022/nov/15/instagram-posts/15000-protesters-have-not-been-sentenced-death-ira/",
+        "headline": "Iran sentences 15,000 protesters to death.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h63.jpg",
+        "GRPP": [
+            "This is untrue. They arrested a lot of protesters but didn't sentence thousands of people to death.",
+            "There have been thousands of arrests of protesters in Iran, and some face charges punishable by death, most of Iran's parliament called for harsh punishments, but the judiciary has not acted on that. So this is wrong"
+        ],
+        "GRPN": [
+            "This is untrue. They arrested a lot of protesters but didn't sentence thousands of people to death. You are sharing lies!",
+            "There have been thousands of arrests of protesters in Iran, and some face charges punishable by death, most of Iran's parliament called for harsh punishments, but the judiciary has not acted on that. So this is wrong and you are sharing misinformation"
+        ],
+        "oldID": "h63"
+    },
+    {
+        "id": "h37",
+        "link": "https://www.snopes.com/fact-check/andrew-tate-arrested-jerrys-pizza-box/",
+        "headline": "Romanian authorities needed proof that Andrew Tate was in the country so they reportedly used his social media posts. His ridiculous video yesterday featured a pizza from a Romanian pizza chain, Jerry's Pizza, confirming he was in the country.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h76.jpg",
+        "GRPP": [
+            "According to the Romanian prosecutor’s office, the pizza box in Andrew Tate’s video didn’t lead to his detention.",
+            "Tate was arrested after months of investigative work by Romanian authorities. Not because of this."
+        ],
+        "GRPN": [
+            "According to the Romanian prosecutor’s office, the pizza box in Andrew Tate’s video didn’t lead to his detention. Why would you believe these lies?",
+            "Tate was arrested after months of investigative work by Romanian authorities. Not because of this. Can't believe people still fall for this."
+        ],
+        "oldID": "h76"
+    },
+    {
+        "id": "h38",
+        "link": "https://www.snopes.com/fact-check/biden-teleprompter-leave-now/",
+        "headline": "Biden's teleprompter told him to \"leave now\" after his Aug. 16, 2021, speech about the Taliban and Afghanistan.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h50.jpg",
+        "GRPP": [
+            "This story stems from a doctored photo, and there is no evidence to support this baseless assertion.",
+            "This is fact checked and false. The story originated from a photoshopped picture that went viral."
+        ],
+        "GRPN": [
+            "This story stems from a doctored photo, and there is no evidence to support this baseless assertion.Be more responsible when sharing stuff.",
+            "This is fact checked and false. The story originated from a photoshopped picture that went viral. Don't spread fake narratives."
+        ],
+        "oldID": "h50"
+    },
+    {
+        "id": "h39",
+        "link": "https://www.snopes.com/fact-check/queen-trump-banned-funeral/",
+        "headline": "Before her death, Queen Elizabeth II specifically requested that former U.S. President Donald Trump was to be prohibited from attending her funeral.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h9.jpeg",
+        "GRPP": [
+            "White House said only current heads of state were invited to the funeral and Trump was not in the White House at that point.There is no evidence to support that Queen made such a request.",
+            "There is no official statement or document to back this. This is a debunked story."
+        ],
+        "GRPN": [
+            "White House said only current heads of state were invited to the funeral and Trump was not in the White House at that point. There is no evidence to support that Queen made such a request. Be more aware of what you share.",
+            "There is no official statement or document to back this.This is a debunked story.It's wrong to share lies to misleads others."
+        ],
+        "oldID": "h9"
+    },
+    {
+        "id": "h40",
+        "link": "https://www.politifact.com/factchecks/2022/oct/25/instagram-posts/no-evidence-pelosi-bought-stock-drug-manufacturer/",
+        "headline": "Nancy Pelosi purchased 10,000 shares of Amgen, manufacturer of Nplate, a drug used to treat radiation sickness.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h65.jpg",
+        "GRPP": [
+            "Inaccurate story.. Pelosi's financial disclosures show no record of purchasing Amgen shares, and her staff has confirmed it.",
+            "This is fabricated and there is no evidence to support this claim."
+        ],
+        "GRPN": [
+            "Inaccurate story.. Pelosi's financial disclosures show no record of purchasing Amgen shares, and her staff has confirmed it.",
+            "Why are you sharing fake news? This is fabricated and there is no evidence to support this claim. Disappointing that people still fall for stuff like this."
+        ],
+        "oldID": "h65"
+    },
+    {
+        "id": "h41",
+        "link": "https://www.politifact.com/factchecks/2020/aug/06/instagram-posts/yes-trump-lawyer-helped-kanye-west-try-get-wiscons/",
+        "headline": "The GOP lawyer who helped Kanye West get on the ballot in Wisconsin is actively working for Donald Trump's campaign.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h129.jpg",
+        "oldID": "h129"
+    },
+    {
+        "id": "h42",
+        "link": "https://www.snopes.com/fact-check/kevin-bacon-wedding-dj-footloose/",
+        "headline": "Kevin Bacon would pay wedding DJs at events he attended to not play “Footloose”.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h131.jpg",
+        "oldID": "h131"
+    },
+    {
+        "id": "h43",
+        "link": "https://www.snopes.com/fact-check/guns-banned-trump-nra-speech/",
+        "headline": "Guns were banned at the NRA convention in Texas, specifically for the May 27, 2022, event at which Donald Trump was scheduled to speak.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h149.jpg",
+        "oldID": "h149"
+    },
+    {
+        "id": "h44",
+        "link": "https://www.snopes.com/fact-check/brittney-griner-audrey-lorber/",
+        "headline": "A white woman was arrested in Russia with 19 grams of THC and served roughly two months in jail; Brittney Griner, a black woman, received nine years after being arrested with only 0.7 grams of THC.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h142.jpg",
+        "oldID": "h142"
+    },
+    {
+        "id": "h45",
+        "link": "https://www.politifact.com/factchecks/2020/oct/07/facebook-posts/yes-wisconsin-legislators-havent-passed-bill-6-mon/",
+        "headline": "Wisconsin Republicans have not passed a single bill in 6 months.",
+        "datePublished": "",
+        "fact": "TRUE",
+        "img": "images/headlines/sam22/h128.jpg",
+        "oldID": "h128"
+    },
+    {
+        "id": "h46",
+        "link": "https://www.snopes.com/fact-check/canadian-gas-nine-dollars-usd/",
+        "headline": "Gas in Canada is $9 a gallon, where no one named Joe Biden is President. ",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h26.jpg",
+        "oldID": "h26"
+    },
+    {
+        "id": "h47",
+        "link": "https://www.snopes.com/fact-check/desantis-defend-mar-a-lago-raid/",
+        "headline": "Florida Gov. Ron DeSantis appearing on the Hannity show, defended the FBI's raid of Donald Trump's Mar-a-Lago residence.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h12.jpg",
+        "oldID": "h12"
+    },
+    {
+        "id": "h48",
+        "link": "https://www.snopes.com/fact-check/veterans-spouses-teaching-certificates/",
+        "headline": "Veterans' spouses without a bachelor's degree can obtain a five-year teaching certificate in Florida after observing classrooms for 12 hours.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h16.jpg",
+        "oldID": "h16"
+    },
+    {
+        "id": "h49",
+        "link": "https://www.snopes.com/fact-check/paul-pelosi-gay-prostitute/",
+        "headline": "Paul Pelosi brought the man who attacked him with a hammer in October 2022 home from a gay bar.",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h5.jpg",
+        "oldID": "h5"
+    },
+    {
+        "id": "h50",
+        "link": "https://www.snopes.com/fact-check/wnba-mvps-trophy/",
+        "headline": "WNBA player Kelsey Plum, the league's All-Star Game MVP, received a generic $18 trophy for her achievement",
+        "datePublished": "",
+        "fact": "FALSE",
+        "img": "images/headlines/sam22/h18.jpg",
+        "oldID": "h18"
+    }
+]

@@ -1,0 +1,33 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(truncnorm)
+```
+
+```{r}
+td1<- round(rtruncnorm(n=250,a=0,b=100,mean=50.72, sd=31.46))
+td2<- round(rtruncnorm(n=250,a=0,b=100,mean=50.72, sd=31.46))
+td2 <- td2+5
+```
+
+```{r}
+t.test(td1,td2)
+```
+
+Pausing to consider why a headline is true or false can help reduce the sharing of false news - 501 participants
+
+```{r}
+shareData <- read.csv('share_data_osf.csv')
+```
+
+```{r}
+shareData$shareDisc = shareData$TRUE. - shareData$FALSE.
+g1 <- shareData %>% filter(Explain == 0)
+g2 <- shareData %>% filter(Explain == 1)
+g1 <- as.double(g1$shareDisc)
+g2 <- as.double(g2$shareDisc)
+cohensD(g1,g2)
+```

@@ -1,0 +1,269 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Start with a clean workspace
+
+```{r}
+rm(list=ls())
+```
+
+```{r}
+setwd("~/Projects/Phd/Data/1Exp/phase1")
+```
+
+The following defines a convenience function for loading libraries, installing if necessary.
+
+```{r}
+loadLibrary = function(packageName, suppressMessages = FALSE, githubRepo = NULL)
+ {
+  if (! require(packageName, character.only = TRUE)) {
+    if (! is.null(githubRepo)) {
+      loadLibrary("devtools")
+      devtools::install_github(githubRepo)    
+    }
+    else 
+      install.packages(packageName)
+  
+    if (suppressMessages)
+      suppressPackageStartupMessages(library(packageName, character.only = TRUE))
+    else 
+      library(packageName, character.only = TRUE)
+  }
+}  
+```
+
+Load some useful libraries.
+
+```{r}
+loadLibrary('psych')
+loadLibrary("jsonlite")
+loadLibrary("ggridges")
+loadLibrary("ggthemes")
+loadLibrary("lme4")
+loadLibrary("tidyverse")
+loadLibrary("lsr")
+```
+
+Load some test data to check whether data has been saved/exported/loaded correctly.
+
+```{r}
+source("Dataloader.R")
+fd <- getData()
+```
+
+The main data frame of interest is the "trials" data-frame which contains one row per participant.
+
+```{r}
+fd$trials
+```
+
+```{r}
+demogs<-fd$demographics %>% filter(!uid %in% c('RLZku34Ub4zZ0tFRfNjg', 'd8jivR3bvIzDVfXR6cYF'))
+```
+
+```{r}
+demogs %>% group_by(socialMedia) %>% summarize(n=n(), p=n/40*100)
+```
+
+```{r}
+demogs %>% group_by(gender) %>% summarize(n=n(), p=n/40*100)
+```
+
+Separate the data set into control and incentive conditions
+
+```{r}
+df <- fd$trials 
+
+dfControl <- df %>% filter(condition == "CTRL")
+cat("Number of participants in control group: ", n_distinct(dfControl$uid), "\n")
+
+dfIncentiveFull <- df %>% filter(condition == "INCTV")
+cat("Number of participants in incentive group: ", n_distinct(dfIncentiveFull$uid), "\n")
+
+dfIncentive <- dfIncentiveFull %>% filter(!uid %in% c('RLZku34Ub4zZ0tFRfNjg', 'd8jivR3bvIzDVfXR6cYF'))
+```
+
+```{r}
+sharingDiscernmentCalc <- function(data) {
+  data <- data %>% select(share, uid, groundTruth) %>% mutate(shareBool = ifelse(share > 50 , 1, 0))
+  
+  tru <- data %>% group_by(uid, groundTruth) %>% summarize(meanShareBool = mean(shareBool)) %>% filter(groundTruth == TRUE) %>% select(uid, meanShareBool) %>% rename(trueShare = meanShareBool) 
+  fal <- data %>% group_by(uid, groundTruth) %>% summarize(meanShareBool = mean(shareBool)) %>% filter(groundTruth == FALSE) %>% select(uid, meanShareBool) %>% rename(flaseShare = meanShareBool) 
+  
+  d <- tru %>% inner_join(fal, by=c('uid'))
+  
+  d$diff = d$trueShare - d$flaseShare
+  
+  return(d)
+}
+
+
+ctrlData <- sharingDiscernmentCalc(dfControl) %>% mutate(condition = 'CTRL')
+inctvData <- sharingDiscernmentCalc(dfIncentive) %>% mutate(condition = 'INCTV')
+fullData <- rbind(ctrlData, inctvData)
+#independentSamplesTTest(formula = diff ~ condition, data = fullData)
+#fullData
+t.test(diff ~ condition, fullData)
+cohensD(formula = diff ~ condition, data = fullData, method = 'unequal')
+
+```
+
+When we come to run the experiment on a large batch of participants it helps to have an estimated for how long it might take.
+
+```{r}
+
+
+trialDurationCtrl <- mean(dfControl$duration/1000,  trim = .25)
+trialDurationInctv <- mean(dfIncentive$duration/1000,  trim = .25)
+experimentDuration <- mean(as.integer(fd$completed$experimentEndTime) / 60000, trim = .25)
+
+cat("inter-quartile mean trial duration (seconds) - control group:", trialDurationCtrl, "\n")
+cat("inter-quartile mean trial duration (seconds) - control group:", trialDurationInctv, "\n")
+cat("inter-quartile mean experiment duration (minutes):", experimentDuration, "\n")
+
+```
+
+It can be useful to load the headline data (to join with the trial data, for example). Here's an example of how to do it.
+
+```{r}
+hdf <- jsonlite::fromJSON("data/sam22_headlines.json")
+ihdf <- jsonlite::fromJSON("data/incentiveHeadlines.json")
+```
+
+Here's an example of how to join it with the trials data
+
+```{r}
+dfInctv <- dfIncentive %>% inner_join(ihdf, by = c("mainHeadline" = "id"))%>% select(uid, condition,groundTruth, mainHeadline, trialEndTime,trialIndex ,trialStartTime, duration,prior,share, 'slider-pre-start','slider-share-start',age,country,fluency,politics,education,socialMedia,gender,numTrials, priorRank,shareRank,link,headline,img, oldID, feedback_q1, feedback_q2) %>% rename(headlineID = oldID)
+
+selectedIDs <- dfInctv[['headlineID']]
+dfControlFull <- dfControl %>% inner_join(hdf, by = c("mainHeadline" = "id"))
+
+dfCtrl <- dfControlFull %>% select(uid, condition,groundTruth, mainHeadline, trialEndTime,trialIndex ,trialStartTime, duration,prior,share, 'slider-pre-start','slider-share-start',age,country,fluency,politics,education,socialMedia,gender,numTrials, priorRank,shareRank,link,headline,img) %>% rename(headlineID = mainHeadline)%>%filter(headlineID %in% selectedIDs )
+
+dfAll <- bind_rows(dfInctv, dfCtrl)
+
+dfAll
+```
+
+```{r}
+dfAll %>% filter(groundTruth == 'FALSE') %>% select(headlineID, headline, share) %>% group_by(headlineID, headline) %>% summarize(share = mean(share)) %>% arrange(desc(share))
+```
+
+The following shows how to summarize the data in various simple ways.
+
+```{r}
+#fd$trials %>%
+  #group_by(groundTruth, trialType) %>%
+  #summarise(meanPrior = mean(prior), sd(prior), mean(share)) 
+
+#fd$trials %>%
+  #group_by(groundTruth, trialType) %>%
+  #summarise(meanPrior = mean(prior), sd(prior), mean(share)) %>%
+  #mutate(correctMeanStance = ifelse(meanPrior >= 50, groundTruth, ! groundTruth)) %>%
+  #count(correctMeanStance)
+
+#fd$trials %>%
+  #mutate(correctStance = ifelse(prior >= 50, groundTruth, ! groundTruth)) %>%
+  #count(correctStance)
+
+#fd$trials %>% 
+  #mutate(priorStance = ifelse(prior >= 50, "pro", "con")) %>%
+  #group_by(groundTruth) %>%
+  #summarise(cor(prior,share),cor(priorRank,shareRank))
+```
+
+Summarize credibility and sharing likelihood (mean) for both conditions and sort it by sharing likelihood
+
+```{r}
+#allSummary <- dfComplete %>% select(groundTruth, mainHeadline,headline,prior, share ) %>% group_by(groundTruth, mainHeadline, headline) %>% summarise(priorMean = mean(prior),shareMean=mean(share),count=n()) %>% arrange(desc(count))
+
+#allSummary
+```
+
+```{r}
+#by(allSummary, INDICES = allSummary$groundTruth , FUN = summary)
+```
+
+List the least performing false headlines based on the number of times shared in descending order in the control group.
+
+```{r}
+foo <- dfControlFull %>% filter(groundTruth == 'FALSE')%>% select(groundTruth, mainHeadline,headline,prior, share ) %>% group_by(groundTruth, mainHeadline, headline) %>% summarise(priorMean = mean(prior),shareMean=mean(share),count=n())
+
+bar <- dfControlFull %>% filter(groundTruth == 'FALSE' & share > 50) %>% select(groundTruth, mainHeadline,headline,prior, share ) %>% group_by(groundTruth, mainHeadline, headline) %>% summarise(priorMean = mean(prior),shareMean=mean(share),count=n()) %>% select(mainHeadline, count) %>% rename(shareCount = count)
+
+data <- foo %>% full_join(bar, by=c('mainHeadline'))
+#write.csv(data,"low_performing_headlines_v2.csv", row.names = TRUE)
+
+lowPerformingHeadlines <- head(data %>% arrange(shareMean), 50)
+lowPerformingHeadlines
+```
+
+List the least performing headlines based on sharing score - headlines rating in control group with 5 ratings - all below 50% with lowest ratings.
+
+```{r}
+#lowPerformingHeadlines <- dfComplete %>% filter(groundTruth == 'FALSE' & share <= 50 & condition == 'CTRL')%>% select(groundTruth, mainHeadline,headline,prior, share ) %>% group_by(groundTruth, mainHeadline, headline) %>% summarise(priorMean = mean(prior),shareMean=mean(share),count=n()) %>% filter(count >= 5)  %>% arrange(shareMean) 
+
+#lowPerformingHeadlines
+
+#write.csv(lowPerformingHeadlines,"low_performing_headlines.csv", row.names = TRUE)
+```
+
+Plot the sharing rating vs count for the low performing headlines from control group.
+
+```{r}
+lowHeadlines <- lowPerformingHeadlines[['mainHeadline']]
+ggplot(dfControlFull %>% filter(groundTruth == 'FALSE' & mainHeadline %in% lowHeadlines), aes(x=share )) + 
+  geom_histogram(binwidth=10,colour="black", fill="white") + 
+  geom_density(alpha=.2, fill="#FF6666",aes(y=..count..)) + 
+  facet_wrap(vars(mainHeadline)) + 
+  expand_limits(x=c(0,100)) +
+  xlab('Sharing likelihood rating') +
+  ylab('Rating count') +
+  ggtitle('Least shared headlines - sharing likelihood rating vs number of ratings')
+
+```
+
+Summarize sharing based on actual shares over 50. This shows how many posts were shared in total for each condition and ground truth level.
+
+```{r}
+dfAll %>% filter(share > 50) %>% group_by(groundTruth, condition) %>% select(groundTruth, condition, prior, share) %>% summarise(count=n(),priorMean = mean(prior),priorSE = sd(prior)/(count^0.5) , priorSD = sd(prior), shareMean = mean(share), shareSD = sd(share),shareSE = sd(share)/(count^0.5))
+
+dfAll%>% group_by(groundTruth, condition) %>% summarise(mean(share > 50))
+
+dfAll%>% filter(!groundTruth) %>% group_by(headlineID, headline) %>% summarise(shareRate = mean(share > 50), meanShare = mean(share),meanPrior = mean(prior)) %>% arrange(desc(shareRate), desc(meanShare))
+
+```
+
+Box plot of sharing by condition and ground truth for all records
+
+```{r}
+dfAll %>% ggplot(aes(x=condition, y = share, fill=factor(groundTruth))) + geom_boxplot() + coord_flip()
+```
+
+Box plot of sharing by condition and ground truth for records of sharing above 50%
+
+```{r}
+dfAll %>% filter(share > 50) %>%ggplot(aes(x=condition, y = share, fill=factor(groundTruth))) + geom_boxplot()+ coord_flip()
+```
+
+Sharing histogram for all records
+
+```{r}
+dfAll %>%
+   ggplot(aes(x=share )) + geom_histogram(aes(y=..density..),binwidth=10,colour="black", fill="white") + geom_density(alpha=.2, fill="#FF6666") + facet_wrap(~groundTruth + condition)
+```
+
+Sharing histogram for records with share rating above 50%
+
+```{r}
+dfAll %>% filter(share > 50) %>%
+   ggplot(aes(x=share )) + geom_histogram(aes(y=..density..),binwidth=5,colour="black", fill="white") + geom_density(alpha=.2, fill="#FF6666") + facet_wrap(~groundTruth + condition)
+```
+
+Participant feedback after the incentive condition
+
+```{r}
+dfAll %>% filter(condition == 'INCTV') %>%select(uid, feedback_q1, feedback_q2) %>%  group_by(uid, feedback_q1, feedback_q2) %>% distinct() 
+```

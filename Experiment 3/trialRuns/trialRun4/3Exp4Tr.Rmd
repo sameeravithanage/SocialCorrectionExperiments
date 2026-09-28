@@ -1,0 +1,257 @@
+---
+title: "Trial Run 4 - Reliability of Social Correction"
+author: 'Sameera Vithanage'
+output:
+  bookdown::pdf_document2:
+    toc: true
+    toc_depth: 3
+    number_section: false
+  bookdown::html_document2: default
+---
+
+## Detailed Statistical Analysis
+
+```{r results='hide', echo=FALSE}
+#Start with a clean workspace
+rm(list=ls())
+```
+
+```{r results='hide', echo=FALSE}
+setwd("~/Projects/Phd/Data/3Exp/trialRun4")
+```
+
+```{r results='hide', echo=FALSE}
+#The following defines a convenience function for loading libraries, installing if necessary.
+loadLibrary = function(packageName, suppressMessages = TRUE, githubRepo = NULL)
+ {
+  if (! require(packageName, character.only = TRUE)) {
+    if (! is.null(githubRepo)) {
+      loadLibrary("devtools")
+      devtools::install_github(githubRepo)    
+    }
+    else 
+      install.packages(packageName)
+  
+    if (suppressMessages)
+      suppressPackageStartupMessages(library(packageName, character.only = TRUE))
+    else 
+      library(packageName, character.only = TRUE)
+  }
+}  
+```
+
+```{r results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+#Load some useful libraries.
+
+loadLibrary('psych')
+loadLibrary("gplots")
+loadLibrary("jsonlite")
+loadLibrary("ggridges")
+loadLibrary("ggthemes")
+loadLibrary("car")
+loadLibrary("tidyverse")
+loadLibrary('lsr')
+loadLibrary('effsize')
+```
+
+```{r results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+options(dplyr.summarise.inform = FALSE)
+```
+
+```{r}
+source("DataloaderE3.R")
+fd <- getData()
+trialData <- fd$trials
+```
+
+```{r}
+#remove the new headline data
+#trialData <- trialData %>% filter(! mainHeadline %in% c('h41','h42','h43','h44'))
+dim(trialData)
+```
+
+Converting string columns to numeric
+
+```{r}
+columns_to_convert <- c("confidenceSection", "credibilitySection", "responseSection", "shareSection", "trialEndTime","trialStartTime", "commentSection", "duration", "confidence", "share", "slider-confidence-start", "slider-share-start", "age")
+trialData[, columns_to_convert] <- lapply(trialData[, columns_to_convert], as.numeric)
+```
+
+Calculating the times for each of the questions
+
+```{r}
+trialData <- trialData %>% mutate(credTime = (confidenceSection - credibilitySection)/1000, 
+                     confidenceTime= (shareSection - confidenceSection)/1000,
+                     sharingTime = (commentSection-shareSection)/1000,
+                     commentTime = (responseSection-commentSection)/1000,
+                     onlineResponseTime = (trialEndTime-responseSection)/1000,
+                     duration = duration/1000)
+```
+
+How many participants and how much time did they take?
+
+```{r}
+n_distinct(trialData$uid)
+```
+
+```{r}
+#how many participants? 
+durationSummary<-  trialData %>% select(uid, sonaID, duration, credTime,confidenceTime,sharingTime, onlineResponseTime,commentTime) %>% group_by(uid, sonaID) %>% summarize(
+  meanTrialDuration = mean(duration, trim=.25), 
+  McredTime = mean(credTime, trim=.25), 
+  MconfidenceTime = mean(confidenceTime, trim=.25),
+  MsharingTime = mean(sharingTime, trim=.25),
+  MonlineResponseTime = mean(onlineResponseTime, trim=.25),
+  McommentTime = mean(commentTime, trim=.25)
+  )
+
+durationSummary
+```
+
+```{r}
+fd$completed %>% summarise(totalDuration.Mins = mean(as.integer(experimentEndTime) / 60000, trim=.25))
+```
+
+On average it seems to take 30 minutes per participant to complete the experiment.
+
+```{r}
+timeData <- trialData %>% select(uid, index,condition, mainHeadline, credTime, confidenceTime, sharingTime, onlineResponseTime, commentTime)
+
+timeDataLong <-timeData %>% pivot_longer(cols = ends_with("Time"), names_to = 'TimeType', values_to = 'duration')
+
+timeDataLong$TimeType <- factor(timeDataLong$TimeType, levels=c('credTime','confidenceTime','sharingTime','onlineResponseTime','commentTime'))
+```
+
+```{r}
+ggplot(timeDataLong, aes(x=TimeType, y=duration)) + geom_boxplot() + scale_x_discrete(guide = guide_axis(angle = 30)) + ylab("Duration (Seconds)") + xlab("Trial question") 
+```
+
+```{r}
+timeDataLong <- timeDataLong %>%
+  group_by(condition, TimeType) %>%
+  filter(duration > quantile(duration, 0.25) & duration < quantile(duration, 0.75))
+```
+
+```{r}
+ggplot(timeDataLong, aes(x=TimeType, y=duration)) + geom_boxplot() + scale_x_discrete(guide = guide_axis(angle = 30)) + ylab("Duration (Seconds)") + xlab("Trial question") 
+```
+
+```{r}
+shareRatingSummary <-trialData %>% select(groundTruth, share) %>% group_by(groundTruth) %>% summarise(count = n(),
+                         mean = mean(share),
+                         sd = sd(share),
+                         se = sd/sqrt(count),
+                         ci = se * qt((1-0.05)/2 + .5, count-1))
+
+shareRatingSummary
+```
+
+```{r}
+ggplot(shareRatingSummary, aes(x=groundTruth, y=mean)) + 
+    geom_bar(position=position_dodge(), stat="identity", width = .7) +
+    geom_errorbar(aes(ymin=mean-ci, ymax=mean+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.7)) + 
+   ylab("Mean Share Rating") + xlab("Ground Truth") + 
+   theme_bw()  + theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust=1))
+```
+
+```{r}
+hdf <- jsonlite::fromJSON("../sam24_headlines.json") %>% rename(headlineText = headline)
+hdf <- hdf %>% select(id,headlineText)
+```
+
+```{r}
+trialData <- merge(trialData, hdf, by.x = "mainHeadline", by.y = "id")
+```
+
+```{r}
+temp <- trialData %>% select(mainHeadline,headlineText,onlineResponse,percCredibility,groundTruth,confidence) %>% group_by(mainHeadline,headlineText,onlineResponse,percCredibility,groundTruth) %>% summarise(mConf = mean(confidence), count = n())
+
+temp <- temp %>%  pivot_wider(
+     id_cols = c(mainHeadline, headlineText, groundTruth),  
+     names_from = c(percCredibility,onlineResponse) , values_from = c(mConf, count) )
+
+```
+
+```{r}
+write.csv(trialData, "3exp4tr_raw.csv")
+```
+
+```{r}
+write.csv(temp, "exp3_trial_4_summary.csv")
+```
+
+## Hypothesis and research questions
+
+H1. Participants will give less corrective comments compared to reinforcing comments.
+
+H2. Participants will be more discerning when giving corrective comments compared to reinforcing ones.
+
+H3. Participants will be more confident in their credibility assessment
+
+1.  a\. when giving comments compared to skipping.
+
+2.  b\. when giving corrective comments compared to reinforcing.
+
+## Analysis
+
+#### H1 - Out of the corrective comments only a small proportion is given online compared to reinforcing comments.
+
+```{r}
+table(trialData$percCredibility, trialData$onlineResponse)
+```
+
+```{r}
+prop.test(table(trialData$percCredibility, trialData$onlineResponse))
+```
+
+```{r}
+power.prop.test(p1 = 0.87, p2 = 0.81, sig.level = 0.05, power = 0.8)
+```
+
+#### H2 - Participants will be more discerning when giving corrective comments compared to reinforcing ones.
+
+```{r}
+table(trialData$groundTruth, trialData$percCredibility)
+```
+
+```{r}
+trialData <- trialData %>% mutate(classification = ifelse( groundTruth == 'FALSE' & percCredibility == 'percFalse', 'hit', ifelse(groundTruth == 'FALSE' & percCredibility != 'percFalse', 'miss',ifelse(groundTruth == 'TRUE' & percCredibility == 'percTrue', 'hit','miss'))))
+temp <- trialData %>% filter(onlineResponse == 'onlineYes')
+
+table(trialData$groundTruth, trialData$classification)
+```
+
+```{r}
+table(temp$groundTruth, temp$percCredibility)
+```
+
+```{r}
+table(temp$groundTruth, temp$classification)
+```
+
+```{r}
+prop.test(table(temp$groundTruth, temp$classification))
+```
+
+#### H3
+
+```{r}
+trialData %>% select(percCredibility,onlineResponse, confidence) %>% group_by(percCredibility, onlineResponse) %>% summarise(mConf = mean(confidence), count = n(), sd=sd(confidence))
+```
+
+```{r}
+leveneTest(confidence ~ interaction(percCredibility, onlineResponse), data = trialData)
+```
+
+```{r}
+rep.Aov <- aov(confidence ~ percCredibility * onlineResponse, data = trialData)
+summary(rep.Aov)
+
+TukeyHSD(rep.Aov)
+```
+
+```{r}
+etaSquared(rep.Aov)
+```
